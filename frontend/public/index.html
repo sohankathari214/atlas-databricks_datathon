@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Find the right care</title><link rel="stylesheet" href="/style.css"><script src="/app.js" type="module"></script></head>
+<body><header><div class="shell header"><div class="brand"><span aria-hidden="true">✚</span> Find the right care</div><div class="source" id="source">Databricks Free Edition</div></div></header>
+<main class="shell">
+<section class="intro"><h1>Find the right care</h1></section>
+<section class="search" aria-label="Referral search"><form id="search"><label>Location<input id="location" placeholder="City, state · PIN · latitude, longitude" required maxlength="100" aria-describedby="location-help"></label><label>Care needed<input id="problem" placeholder="Example: Ongoing knee pain or a dialysis appointment" required maxlength="300" aria-describedby="problem-help"></label><button type="submit">Find facilities</button><div id="matched-keywords" class="matched-keywords" role="status" aria-atomic="true"></div></form><p id="location-help" class="metadata">Enter a city or district with its state, a six-digit Indian PIN, or latitude and longitude.</p><p id="problem-help" class="metadata">Describe the symptom or care needed. Free text is sent to OpenAI for interpretation. Leave out names and other identifying details.</p></section>
+<section id="emergency-guidance" class="emergency-guidance" role="alert" hidden>
+  <h2>Possible emergency</h2>
+  <p>If this is happening now in India, <a href="tel:112">call 112 now</a>. Do not wait for search results or drive yourself. Follow the dispatcher’s instructions.</p>
+  <p class="metadata"><a href="https://www.mha.gov.in/emergency-response-support-system-erss">India emergency response</a> · <a href="https://www.heart.org/en/health-topics/heart-attack/warning-signs-of-a-heart-attack">Heart attack warning signs</a></p>
+</section>
+<details class="sources-panel">
+<summary>What determines the results?</summary>
+<dl class="decision-rules">
+<dt>Search inputs</dt><dd>Your location and a short description of the care needed. OpenAI suggests a care setting and search terms from the Databricks catalog. Common emergency warning phrases show immediate guidance. If a specific service is unclear, the search can start with general outpatient assessment. Databricks uses the service to retrieve and rank facilities, and resolves the search origin from the city, district, PIN or coordinates. Distances are straight-line estimates.</dd>
+<dt>Dataset-only baseline</dt><dd>Virtue service mentions within 100 km, ordered by distance when the facility pin is usable. A mention can describe a service the campus lacks.</dd>
+<dt>Needs confirmation in live searches</dt><dd>Explicit on-site claims come ahead of general or narrower claims, then distance breaks the tie. Reviewed source links provide context. These results are leads to confirm.</dd>
+<dt>Withheld</dt><dd>Live searches withhold results when location checks conflict or Virtue claims conflict, indicate absence, refer elsewhere or describe a plan.</dd>
+</dl>
+<details class="more"><summary>Sources used and available for follow-up</summary>
+<p>Databricks uses Virtue facility text and pins, India Post location data, and reviewed evidence where available. The external links below are available for follow-up. Searches do not run the optional crawlers or external evidence lookups.</p>
+<ul>
+<li><a href="https://www.data.gov.in/resource/national-hospital-directory-geo-code-and-additional-parameters-updated-till-last-month">Hospital directory</a> · <a href="https://jk.data.gov.in/dataset-group-name/trfff">Public facilities and blood banks</a> · <a href="https://hem.nha.gov.in/search">PM-JAY</a> · <a href="https://pmndp.mohfw.gov.in/en/state-wise-details">Dialysis centres</a> · <a href="https://nhm.gov.in/nhm/nrhm.html/index1.php?lang=1&amp;level=2&amp;lid=218&amp;sublinkid=822">Emergency obstetric care</a> · <a href="https://nabh.co/find-a-healthcare-organisation/">NABH</a></li>
+<li><a href="https://docs.overturemaps.org/guides/places/">Overture</a>, map listings, hospital websites, news, tenders and public reviews can provide leads for review. Facility listings and historical care leave current availability unknown.</li>
+</ul></details></details>
+<section aria-label="Search results" id="results"></section>
+<footer><a href="https://dbc-069c8426-ea2f.cloud.databricks.com/editor/notebooks/48725305901297?o=7474644172043202">Open Databricks notebook</a></footer>
+</main></body></html>

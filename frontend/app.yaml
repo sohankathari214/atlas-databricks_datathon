@@ -1,0 +1,6 @@
+command: ["npm", "run", "start"]
+env:
+  - name: WAREHOUSE_ID
+    value: "745fb903b957561a"
+health_check:
+  path: /health

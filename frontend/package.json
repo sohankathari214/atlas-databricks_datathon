@@ -1,0 +1,9 @@
+{
+  "name": "find-the-right-care",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node server.mjs",
+    "configure:llm": "node tools/configure-openai.mjs"
+  }
+}
