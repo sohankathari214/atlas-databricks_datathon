@@ -95,7 +95,12 @@ async function handleIntake(request, response) {
       return json(200, { emergency: true, interpretation, message: 'The directory could not load nearby emergency department listings.' });
     }
   }
-  const result = await searchReferral(location, interpretation.service);
+  const normalizedLocation = location.toLowerCase().replace(/[,\s]+/g, ' ').trim();
+  const replay = input.useReplay !== false && interpretation.service === 'dialysis'
+    && ['bhagalpur', 'bhagalpur bihar'].includes(normalizedLocation);
+  const result = replay
+    ? await readScenario('bhagalpur')
+    : await searchReferral(location, interpretation.service);
   return json(200, { ...result, interpretation });
 }
 

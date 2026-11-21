@@ -3,7 +3,9 @@ RETURNS TABLE (payload STRING)
 COMMENT 'Resolve an Indian locality, district, PIN or coordinates and compare Virtue services and care settings against campus evidence.'
 RETURN
 WITH input AS (
-  SELECT trim(query_location) raw_location, lower(trim(split_part(query_location, ',', 1))) locality,
+  SELECT trim(query_location) raw_location,
+    regexp_replace(lower(trim(query_location)), r'\s+', ' ') normalized_location,
+    lower(trim(split_part(query_location, ',', 1))) locality,
     lower(trim(split_part(query_location, ',', 2))) region
 ), postal AS (
   SELECT lower(trim(regexp_replace(officename, r'(?i)\s+(S\.?O\.?|B\.?O\.?|H\.?O\.?)$', ''))) office,
@@ -40,7 +42,9 @@ WITH input AS (
     AND (percentile_approx(g.longitude,0.75)-percentile_approx(g.longitude,0.25)) < 0.55
   UNION ALL
   SELECT 'India Post locality centroid', office, state, median(lat), median(lon), 3
-  FROM postal CROSS JOIN input WHERE office = locality AND (region = '' OR state = region)
+  FROM postal CROSS JOIN input
+  WHERE ((office = locality AND (region = '' OR state = region OR district = region))
+         OR (region = '' AND concat_ws(' ', office, district) = normalized_location))
     AND lat BETWEEN 6 AND 38 AND lon BETWEEN 68 AND 98
   GROUP BY office,state HAVING (max(lat)-min(lat)) < 0.65 AND (max(lon)-min(lon)) < 0.65
   UNION ALL
@@ -149,8 +153,8 @@ SELECT to_json(named_struct('location',(SELECT raw_location FROM input),'service
   'originMethod',(SELECT method FROM origin),
   'message', CASE WHEN NOT EXISTS(SELECT 1 FROM origin) THEN
     CASE WHEN (SELECT count(DISTINCT state) FROM matches) > 1
-      THEN 'This place name matches more than one state. Enter city or district, state, or use a PIN code.'
-      ELSE 'No usable origin found. Try city or district, state, a six-digit PIN, or latitude, longitude in India.' END
+      THEN 'This place name matches more than one state. Add the city or state, or use a PIN code.'
+      ELSE 'No usable origin found. Try locality and city, city and state, a six-digit PIN, or latitude and longitude in India.' END
     ELSE '' END,
   'baseline',baseline,'supported',array(),'exclusions',exclusions,'leads',leads),map('ignoreNullFields','false')) payload
 FROM grouped

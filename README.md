@@ -11,6 +11,8 @@ Find the right care compares nearby health facilities in India using the Virtue 
 3. The backend binds the location and service as SQL parameters, sends the statement to `POST /api/2.0/sql/statements`, and polls the warehouse while the statement is pending or running. It uses the managed service principal in Databricks Apps or a Databricks CLI profile locally. [Referral queries](backend/referrals.mjs) · [Databricks client](backend/databricks.mjs)
 4. Databricks resolves the search origin, finds facility claims within 100 km, joins reviewed evidence, and ranks the results. The backend returns the warehouse result to the browser with the matched service and keywords. [Referral search SQL](databricks/referral_search.sql)
 
+A Bhagalpur dialysis search opens the reviewed February 18, 2024 replay with its date visible. Select **Run live directory search** to see the current dataset results for the same inputs.
+
 The submission notebook calls the same Unity Catalog function directly. It also supports the Palwal MRI and Bhagalpur dialysis scenarios prepared by the scenario publisher. [Submission notebook source](databricks/Explore%20live%20referrals.py) · [Scenario publisher](databricks/Publish%20referral%20frontend.py)
 
 ## Enable free-text interpretation

@@ -110,6 +110,8 @@ function render(data) {
   const more = [...otherExclusions.map(row => card(row, data, 'excluded')),
     ...(data.supported.length ? data.leads : otherLeads).map(row => card(row, data, 'lead'))];
   results.innerHTML = `<div class="results-head"><h2>${escape(data.location)} · ${service}</h2><p role="status">${timing}</p></div>
+    ${data.cutoff ? `<div class="panel replay-note"><p><b>Reviewed historical example.</b> The evidence shows what was reported by ${escape(date(data.cutoff))}. Current service availability is unknown.</p>
+      <button type="button" id="live-results">Run live directory search</button></div>` : ''}
     <div class="columns">
       <section class="panel"><h2>Dataset-only baseline</h2><p class="sub">Virtue mentions, nearest first</p>
         ${closest ? card(closest, data, 'baseline') : '<p>No nearby keyword hits with usable distance.</p>'}
@@ -122,10 +124,11 @@ function render(data) {
         ${more.length ? `<details class="more"><summary>Other candidates (${more.length})</summary>${more.join('')}</details>` : ''}
       </section>
     </div>`;
+  results.querySelector('#live-results')?.addEventListener('click', () => search({ useReplay: false }));
 }
 
 let activeRequest;
-async function search() {
+async function search({ useReplay = true } = {}) {
   activeRequest?.abort();
   const request = new AbortController();
   activeRequest = request;
@@ -136,7 +139,7 @@ async function search() {
   try {
     const response = await fetch('/api/referral', {
       method: 'POST', headers: { 'Content-Type': 'application/json' }, signal: request.signal,
-      body: JSON.stringify({ location: locationInput.value, problem: problemInput.value }),
+      body: JSON.stringify({ location: locationInput.value, problem: problemInput.value, useReplay }),
     });
     const data = await response.json();
     if (!response.ok) {
@@ -155,7 +158,7 @@ async function search() {
   } catch (error) {
     if (request.signal.aborted) return;
     results.innerHTML = `<div class="state" role="status"><p>${escape(error.userMessage || 'Could not load these results.')}</p><button type="button">Retry search</button></div>`;
-    results.querySelector('button').addEventListener('click', search);
+    results.querySelector('button').addEventListener('click', () => search({ useReplay }));
   } finally {
     if (activeRequest === request) results.setAttribute('aria-busy', 'false');
   }
