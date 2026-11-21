@@ -1,11 +1,11 @@
 import { createServer } from 'node:http';
 import { readFile } from 'node:fs/promises';
-import { execFile } from 'node:child_process';
-import { promisify } from 'node:util';
 import { fileURLToPath } from 'node:url';
 import { loadEnvFile } from 'node:process';
 import { emergencyRoute, interpretCare } from './care-intake.mjs';
-import { emergencySigns } from './public/care-routing.js';
+import { emergencySigns } from '../web/care-routing.js';
+import { databricksRequest } from './databricks.mjs';
+import { readScenario, searchReferral, serviceCatalog } from './referrals.mjs';
 
 if (!process.env.DATABRICKS_APP_PORT) {
   try {
@@ -15,10 +15,6 @@ if (!process.env.DATABRICKS_APP_PORT) {
   }
 }
 
-const execute = promisify(execFile);
-const workspaceHost = process.env.DATABRICKS_HOST || '';
-const host = (workspaceHost.includes('://') ? workspaceHost : `https://${workspaceHost}`).replace(/\/$/, '');
-const warehouse = process.env.WAREHOUSE_ID || '745fb903b957561a';
 const services = new Set(['mri', 'dialysis', 'c_section', 'nicu', 'cardiac_surgery', 'burn_care', 'trauma_care']);
 const scenarios = new Set(['palwal', 'bhagalpur']);
 const staticFiles = {
@@ -27,83 +23,6 @@ const staticFiles = {
   '/app.js': ['app.js', 'text/javascript'],
   '/care-routing.js': ['care-routing.js', 'text/javascript'],
 };
-let token;
-let expires = 0;
-
-async function appToken() {
-  if (token && expires > Date.now()) return token;
-  const basic = Buffer.from(`${process.env.DATABRICKS_CLIENT_ID}:${process.env.DATABRICKS_CLIENT_SECRET}`).toString('base64');
-  const response = await fetch(`${host}/oidc/v1/token`, {
-    method: 'POST',
-    headers: { Authorization: `Basic ${basic}` },
-    body: new URLSearchParams({ grant_type: 'client_credentials', scope: 'all-apis' }),
-    signal: AbortSignal.timeout(12000),
-  });
-  if (!response.ok) throw new Error(`Databricks OAuth HTTP ${response.status}`);
-  const data = await response.json();
-  token = data.access_token;
-  expires = Date.now() + (data.expires_in - 60) * 1000;
-  return token;
-}
-
-async function databricks(path, body) {
-  if (process.env.DATABRICKS_PROFILE && !process.env.DATABRICKS_CLIENT_SECRET) {
-    const command = ['api', body ? 'post' : 'get', path, '-p', process.env.DATABRICKS_PROFILE, '-o', 'json'];
-    if (body) command.push('--json', JSON.stringify(body));
-    const { stdout } = await execute(process.env.DATABRICKS_CLI || 'databricks', command, { timeout: 40000 });
-    return JSON.parse(stdout);
-  }
-  const response = await fetch(`${host}${path}`, {
-    method: body ? 'POST' : 'GET',
-    headers: { Authorization: `Bearer ${await appToken()}`, 'Content-Type': 'application/json' },
-    body: body && JSON.stringify(body),
-    signal: AbortSignal.timeout(40000),
-  });
-  if (!response.ok) throw new Error(`Databricks SQL HTTP ${response.status}`);
-  return response.json();
-}
-
-async function queryReferral(statement, params) {
-  const path = '/api/2.0/sql/statements';
-  let result = await databricks(path, {
-    warehouse_id: warehouse,
-    statement,
-    parameters: Object.entries(params).map(([name, value]) => ({ name, value, type: 'STRING' })),
-    wait_timeout: '10s',
-  });
-  for (let attempts = 0; ['PENDING', 'RUNNING'].includes(result.status.state) && attempts < 18; attempts++) {
-    await new Promise(resolve => setTimeout(resolve, 1200));
-    result = await databricks(`${path}/${result.statement_id}`);
-  }
-  if (result.status.state !== 'SUCCEEDED') {
-    throw new Error(result.status.error?.message ?? `SQL state ${result.status.state}`);
-  }
-  const payload = result.result?.data_array?.[0]?.[0];
-  if (!payload) throw new Error('Published scenario is missing');
-  return JSON.parse(payload);
-}
-
-function readScenario(scenario) {
-  return queryReferral('SELECT payload FROM workspace.referral_verification.frontend_scenarios WHERE scenario = :scenario', { scenario });
-}
-
-function searchReferral(location, service) {
-  return queryReferral('SELECT payload FROM workspace.referral_verification.search_referrals(:location, :service)', { location, service });
-}
-
-let catalogCache;
-let catalogExpires = 0;
-async function serviceCatalog() {
-  if (catalogCache && catalogExpires > Date.now()) return catalogCache;
-  const catalog = await queryReferral(
-    'SELECT payload FROM workspace.referral_verification.referral_service_catalog()', {},
-  );
-  if (!catalog.length) throw new Error('Databricks service catalog is empty');
-  catalogCache = catalog;
-  catalogExpires = Date.now() + 300000;
-  return catalog;
-}
-
 let cloudKey;
 let keyExpires = 0;
 async function openAIKey() {
@@ -111,7 +30,7 @@ async function openAIKey() {
   if (!process.env.DATABRICKS_APP_PORT) return '';
   if (keyExpires > Date.now()) return cloudKey;
   try {
-    const secret = await databricks('/api/2.0/secrets/get?scope=referral-llm&key=openai-api-key');
+    const secret = await databricksRequest('/api/2.0/secrets/get?scope=referral-llm&key=openai-api-key');
     cloudKey = Buffer.from(secret.value, 'base64').toString('utf8').trim();
     keyExpires = Date.now() + 60000;
   } catch {
@@ -207,7 +126,7 @@ const server = createServer(async (request, response) => {
       return send(response, 200, 'application/json', JSON.stringify(await searchReferral(location, service)));
     }
     const file = Object.hasOwn(staticFiles, url.pathname) && staticFiles[url.pathname];
-    if (file) return send(response, 200, file[1], await readFile(new URL(`./public/${file[0]}`, import.meta.url)));
+    if (file) return send(response, 200, file[1], await readFile(new URL(`../web/${file[0]}`, import.meta.url)));
     return send(response, 404, 'text/plain', 'Page not found');
   } catch (error) {
     console.error('Referral request failed:', error.message);

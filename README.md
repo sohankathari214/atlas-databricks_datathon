@@ -2,9 +2,16 @@
 
 [Open the private Databricks app](https://find-the-right-care-7474644172043202.aws.databricksapps.com) · [Open the submission notebook](https://dbc-069c8426-ea2f.cloud.databricks.com/editor/notebooks/48725305901297?o=7474644172043202)
 
-Enter an Indian city, district and state, PIN, or coordinates. Type a short description such as “looking for a dialysis appointment” or “need a hospital that performs coronary bypass.” GPT-6 Luna interprets the text against the Databricks service catalog and returns a service and canonical keywords. The location goes directly to Databricks. Avoid entering names and other identifying details in care descriptions.
+Find the right care compares nearby health facilities in India using the Virtue Foundation dataset and reviewed evidence. Enter a city, district and state, PIN, or coordinates and describe the care you need. The results show which facility claims matched, which sources support them, and which location or service conflicts affect the ranking. Avoid entering names and other identifying details in care descriptions.
 
-The catalog includes emergency department and general outpatient assessment alongside the seven specific services. Symptom descriptions map to a care setting. If no specific service is supported, a non-emergency concern can start with general outpatient assessment. Common emergency phrases show guidance immediately and route to emergency department listings. These listings remain secondary and do not verify emergency or cardiac capability. Databricks handles facility retrieval and ranking after classification. After a search, the form shows the matched service and associated keywords below the care field.
+## From browser request to Databricks
+
+1. The web UI sends a location and care description to `POST /api/referral` on the Node.js backend. [Web UI](web/app.js) · [HTTP server](backend/server.mjs)
+2. The backend loads the Unity Catalog service catalog and uses OpenAI to classify free text into a supported service. The catalog covers seven specific services, emergency departments, and general outpatient assessment. [Service catalog SQL](databricks/referral_service_catalog.sql) · [Care intake](backend/care-intake.mjs)
+3. The backend binds the location and service as SQL parameters, sends the statement to `POST /api/2.0/sql/statements`, and polls the warehouse while the statement is pending or running. It uses the managed service principal in Databricks Apps or a Databricks CLI profile locally. [Referral queries](backend/referrals.mjs) · [Databricks client](backend/databricks.mjs)
+4. Databricks resolves the search origin, finds facility claims within 100 km, joins reviewed evidence, and ranks the results. The backend returns the warehouse result to the browser with the matched service and keywords. [Referral search SQL](databricks/referral_search.sql)
+
+The submission notebook calls the same Unity Catalog function directly. It also supports the Palwal MRI and Bhagalpur dialysis scenarios prepared by the scenario publisher. [Submission notebook source](databricks/Explore%20live%20referrals.py) · [Scenario publisher](databricks/Publish%20referral%20frontend.py)
 
 ## Enable free-text interpretation
 
@@ -13,7 +20,6 @@ Set `OPENAI_API_KEY` in the repository-root `.env` file. The local server loads 
 For the hosted app, transfer the key into its dedicated Databricks secret scope from a shell with an authenticated Databricks CLI:
 
 ```sh
-cd frontend
 npm run configure:llm
 ```
 
@@ -21,13 +27,13 @@ The command reads the ignored `.env` file, assigns the app's service principal r
 
 ## Databricks workflow
 
-Each search issues a parameterized SQL Statement Execution API request to the existing Serverless Starter Warehouse. General searches first read the supported intents from `workspace.referral_verification.referral_service_catalog()`. The classified service ID and location then go to the Unity Catalog `workspace.referral_verification.search_referrals` table function. It resolves the origin from documented city coordinates, Virtue city pins, or India Post locality, district and PIN data. It compares proximity-ranked mentions against the existing seven-service claim classification, facility location flags, and eligible reviewed sources. The radius is 100 km straight-line. If the name is ambiguous or missing from the lookup, enter a PIN or coordinates instead.
+The `workspace.referral_verification.search_referrals` table function resolves the location using documented city coordinates, Virtue city pins, or India Post locality, district and PIN data. It compares proximity-ranked mentions against service claim classifications, facility location flags, and eligible reviewed sources. If the name is ambiguous or missing from the lookup, enter a PIN or coordinates.
 
 Outside curated cases, an explicit on-site mention is a lead. Routine C-section, initial trauma stabilization, and an SNCU are shown with their narrower scope. Location conflicts have no distance or rank. Neither source volume nor a map listing establishes on-site care availability.
 
-The submission notebook can replay the original reviewed scenarios from `frontend_scenarios`, prepared by the publisher notebook. The submission folder includes the shared query, a widget notebook, website seed export, and reviewed evidence intake. After replacing the SQL function, reapply `EXECUTE` to the app service principal before redeploying because the warehouse may clear the grant on replacement.
+The root Databricks Apps configuration starts the backend and selects the SQL warehouse. After replacing the SQL function, reapply `EXECUTE` to the app service principal before redeploying because the warehouse may clear the grant on replacement. [Databricks Apps configuration](app.yaml)
 
-## Source enrichment proof of concept
+## Source enrichment and review
 
 The browser shows source links and reviewed signals. Collection runs separately through [enrichment.py](tools/enrichment.py). It produces leads requiring a campus match and review. Signed-in or CAPTCHA-protected directories can be collected by using an authorized export. Each CSV or HTML directory requires an explicit column map such as `{"name":"Hospital Name","address":"Address","pin":"Pin Code","phone":"Contact"}`.
 
@@ -52,16 +58,25 @@ python3 tools/enrichment.py google-places website-seeds.csv --limit 2 > place-id
 python3 tools/enrichment.py google-status '<reviewed Place ID>'
 ```
 
-Configure `BRAVE_SEARCH_API_KEY` and `GOOGLE_PLACES_API_KEY` in the operator environment if needed. Neither integration runs during referral searches. The adapters do not assume free quotas or enable billing. This demo does not schedule the 8,400-site crawl or thousands of Google requests.
+Configure `BRAVE_SEARCH_API_KEY` and `GOOGLE_PLACES_API_KEY` in the operator environment if needed. Operators run these adapters independently of referral searches.
 
 For each attributable lead, review the exact source and campus, set its Virtue facility ID and a substantive rationale, and set `review_status` to `reviewed`. Upload JSONL to an existing Unity Catalog volume. Run **Load reviewed referral evidence** in Validate mode, then Apply. Valid rows merge into `frontend_source_signals` and appear under applicable live facility results. Unknown facility IDs, missing rationale and Google records are excluded.
 
 ## Run locally
 
+Run these commands from the repository root with Node.js and the Databricks CLI installed.
+
 ```sh
 databricks auth login --host https://dbc-069c8426-ea2f.cloud.databricks.com --profile virtue-datathon
-cd frontend
 DATABRICKS_PROFILE=virtue-datathon npm start
 ```
 
 Open [the local preview](http://127.0.0.1:4173). Set `DATABRICKS_CLI` to the binary path if it is outside your executable search path. The deployed app uses a Databricks-managed service principal and remains private.
+
+To retrieve warehouse results directly from the search endpoint, run this from another terminal.
+
+```sh
+curl --get http://127.0.0.1:4173/api/referral \
+  --data-urlencode 'location=Jaipur, Rajasthan' \
+  --data-urlencode 'service=c_section'
+```

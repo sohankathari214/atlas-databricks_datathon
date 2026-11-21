@@ -1,4 +1,4 @@
-import { emergencySigns } from './public/care-routing.js';
+import { emergencySigns } from '../web/care-routing.js';
 
 const endpoint = 'https://api.openai.com/v1/responses';
 const normalize = (text) => text.normalize('NFKC').toLowerCase().trim().replace(/\s+/g, ' ');

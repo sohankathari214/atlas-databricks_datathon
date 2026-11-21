@@ -9,7 +9,7 @@ const cli = process.env.DATABRICKS_CLI || 'databricks';
 const profile = process.env.DATABRICKS_PROFILE || 'virtue-datathon';
 
 async function configure() {
-  loadEnvFile(fileURLToPath(new URL('../../.env', import.meta.url)));
+  loadEnvFile(fileURLToPath(new URL('../.env', import.meta.url)));
   const apiKey = process.env.OPENAI_API_KEY?.trim();
   if (!apiKey || !apiKey.startsWith('sk-')) throw new Error('Set OPENAI_API_KEY in the root .env file first.');
   const auth = JSON.parse(execFileSync(cli, ['auth', 'token', '--host', workspace, '-p', profile], { encoding: 'utf8' }));
