@@ -1,3 +1,4 @@
+import './page-language.js';
 import { emergencySigns } from './care-routing.js';
 
 const locationInput = document.querySelector('#location');
@@ -6,16 +7,6 @@ const results = document.querySelector('#results');
 const matchedKeywords = document.querySelector('#matched-keywords');
 const emergencyGuidance = document.querySelector('#emergency-guidance');
 const serviceLabels = {mri:'MRI',dialysis:'Dialysis',c_section:'Emergency C-section',nicu:'NICU',cardiac_surgery:'Cardiac surgery',burn_care:'Burn care',trauma_care:'Trauma care',emergency_care:'Emergency department',primary_care:'General outpatient assessment'};
-const checkByService = {
-  mri:'Is the scanner operating at this address, and what is the earliest appointment for this scan?',
-  dialysis:'Is this campus doing outpatient dialysis and taking new referrals? What is the next available slot?',
-  c_section:'Can this campus receive an emergency obstetric referral now and perform an emergency C-section?',
-  nicu:'Can the NICU at this campus accept the referral, and is a staffed bed available?',
-  cardiac_surgery:'Does this campus perform the requested cardiac procedure, and is its team accepting referrals?',
-  burn_care:'Can the burn service at this campus accept this referral and confirm the needed level of care?',
-  primary_care:'Does this facility offer general outpatient assessment, and when can I be seen?',
-  trauma_care:'Can the trauma team at this campus receive this referral now and provide the required care?',
-};
 const escape = value => String(value ?? '').replace(/[&<>"']/g, character =>
   ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' })[character]);
 const date = value => value ? new Intl.DateTimeFormat('en', {
@@ -25,11 +16,11 @@ const link = (label, url) => /^https?:\/\//i.test(url || '')
   ? `<a href="${escape(url)}" target="_blank" rel="noopener noreferrer">${escape(label)}</a>` : '';
 
 function evidence(row, cutoff, additionalLinks) {
-  const claim = row.claim ? `<b>Virtue · ${escape(row.claim.field)}</b><br><q>${escape(row.claim.excerpt)}</q>`
+  const claim = row.claim ? `<b>Virtue · ${escape(row.claim.field)}</b><br><q translate="no">${escape(row.claim.excerpt)}</q>`
     : 'No matching Virtue text for this service.';
   const virtueSources = row.sourceUrls.map((url, index) => link(`Virtue source ${index + 1}`, url)).join(' · ');
   return `<details><summary>Evidence and source links</summary>
-    <div class="evidence">${claim}<p class="metadata">Virtue facility ID · ${escape(row.id)}<br>${escape(row.virtueAddress)}</p>
+    <div class="evidence">${claim}<p class="metadata">Virtue facility ID · ${escape(row.id)}<br><span translate="no">${escape(row.virtueAddress)}</span></p>
     <p class="metadata">${row.campusCorroborated ? 'Campus corroborated. Exact pin unverified.' : 'Campus identity and pin need confirmation.'}</p>
     ${virtueSources ? `<div class="links">${virtueSources}</div>` : ''}</div>
     ${row.evidence.map(item => {
@@ -43,35 +34,8 @@ function evidence(row, cutoff, additionalLinks) {
     ${additionalLinks ? `<div class="links">${additionalLinks}</div>` : ''}</details>`;
 }
 
-function explanation(row) {
-  if (row.tier === -3) return ['Withheld · Location conflict',
-    row.locationFlags?.length ? 'The location checks flagged ' + row.locationFlags.join(', ').replaceAll('_', ' ') + '. Distance and rank are withheld.' :
-      'The Virtue pin and the listed Jamshedpur address conflict. This campus has no distance or rank.'];
-  if (row.kind === 'planned') return [`Withheld · MRI planned · ${date(row.event)}`,
-    'The district corroborates the campus. Dated reporting says MRI was approved and the hospital still lacked a machine.'];
-  if (row.kind === 'interrupted') return [`Withheld · Service interruption · ${date(row.event)}`,
-    'The latest applicable service record reports an interruption at this campus.'];
-  if (row.kind === 'delivered') return [`Dialysis documented · ${date(row.event)}`,
-    'Entered at #1 because a dated report says four patients received dialysis at this campus. The Virtue keyword search missed it.'];
-  if (row.kind === 'listed') return ['MRI listed by the hospital',
-    `Moved from baseline #${row.baselineRank} to #${row.rank}. The hospital lists MRI, and its address and phone match this Virtue campus.`];
-  if (row.claimConflict) return ['Withheld · Conflicting claims', 'Virtue contains both positive and negative or off-site claims. Verify which refers to this campus.'];
-  if (row.tier < 0) {
-    const reasons = {explicit_absence:'The Virtue excerpt says the service is unavailable.',offsite_referral:'The Virtue excerpt directs care to a different facility.',planned:'The Virtue excerpt describes a planned service.'};
-    return ['Withheld · Service claim needs review', reasons[row.claimType] || 'The Virtue text suggests that the service is absent, planned, or provided elsewhere.'];
-  }
-  if (row.claimSubtype === 'documented_cs') return ['Needs confirmation · C-section claim','Virtue describes C-sections. Whether the campus can receive an emergency obstetric referral still needs confirmation.'];
-  if (row.claimSubtype === 'sncu_level2') return ['Needs confirmation · Newborn care claim','Virtue describes a special newborn care unit. The level of neonatal intensive care available still needs confirmation.'];
-  if (row.claimSubtype === 'stabilization_documented') return ['Needs confirmation · Stabilization claim','Virtue describes initial stabilization. The trauma services required for a transfer still need confirmation.'];
-  if (row.claimType === 'care_setting_mention') return ['Needs confirmation · Care setting listed','The Virtue record mentions this type of care. Confirm the service is available at this site.'];
-  if (row.claimType === 'explicit_onsite') return ['Needs confirmation · On-site claim','Virtue explicitly names the service at this facility. The search gives these claims priority over general mentions. Independent delivery and availability still need confirmation.'];
-  return ['Needs confirmation', 'Virtue mentions a related service or specialty. Reviewed on-site delivery evidence is missing.'];
-}
 function card(row, data, mode) {
-  const rank = mode === 'baseline' ? row.baselineRank : row.rank;
   const distance = row.km === null ? 'Distance withheld' : `${row.km.toFixed(1)} km straight-line`;
-  const [status, reason] = explanation(row);
-  const check = checkByService[data.service];
   const query = encodeURIComponent(row.name + ', ' + row.address);
   const maps = row.tier === -3 ? '' : link('Google Maps', 'https://www.google.com/maps/search/?api=1&query=' + query) + ' ' +
     link('OpenStreetMap', 'https://www.openstreetmap.org/search?query=' + query);
@@ -80,11 +44,9 @@ function card(row, data, mode) {
     link('News, tenders and jobs','https://search.brave.com/search?q=' + encodeURIComponent(row.name+' '+row.place+' '+serviceLabels[data.service]+' news OR tender OR jobs'))].filter(Boolean).join(' ');
   const phoneCheck = data.service === 'dialysis' && row.id === '29903d8a-3433-4240-b1eb-91094a7551d4';
   return `<article class="card ${mode}">
-    <h3>${rank ? `<span class="rank">#${rank}</span> ` : ''}${escape(row.name)}</h3>
-    <p class="metadata">${escape(row.place)} · ${distance}</p>
-    ${mode === 'baseline' ? '' :
-    `<div class="status">${escape(status)}</div><p class="reason">${escape(reason)}</p>
-    ${mode === 'supported' || mode === 'lead' ? `<p class="next"><b>Ask the facility</b> · ${escape(check)}</p>` : ''}`}
+    <div class="facility-copy">
+    <h3><span translate="no">${escape(row.name)}</span></h3>
+    <p class="metadata"><span translate="no">${escape(row.place)}</span> · ${distance}</p>
     <div class="phone-check">
       <button type="button" data-phone-check${phoneCheck ? ' data-dialysis-enabled' : ''}>Confirm by phone</button>
       <p class="phone-status" role="status"></p>
@@ -108,27 +70,20 @@ function render(data) {
     return;
   }
   const service = serviceLabels[data.service];
-  const timing = data.cutoff ? `Historical replay · ${date(data.cutoff)}` : data.originMethod ? escape(data.originMethod) + ' · Within 100 km straight-line' : 'Latest reviewed evidence';
-  const [closest, ...otherBaseline] = data.baseline;
+  const timing = data.cutoff ? `Historical replay · ${date(data.cutoff)}` : '';
   const [mainExclusion, ...otherExclusions] = data.exclusions;
   const [topLead, ...otherLeads] = data.leads;
   const more = [...otherExclusions.map(row => card(row, data, 'excluded')),
     ...(data.supported.length ? data.leads : otherLeads).map(row => card(row, data, 'lead'))];
-  results.innerHTML = `<div class="results-head"><h2>${escape(data.location)} · ${service}</h2><p role="status">${timing}</p></div>
+  results.innerHTML = `<div class="results-head"><h2><span translate="no">${escape(data.location)}</span> · ${service}</h2>${timing ? `<p role="status">${timing}</p>` : ''}</div>
     ${data.cutoff ? `<div class="panel replay-note"><p><b>Reviewed historical example.</b> The evidence shows what was reported by ${escape(date(data.cutoff))}. Current service availability is unknown.</p>
       <button type="button" id="live-results">Run live directory search</button></div>` : ''}
-    <div class="columns">
-      <section class="panel"><h2>Dataset-only baseline</h2><p class="sub">Virtue mentions, nearest first</p>
-        ${closest ? card(closest, data, 'baseline') : '<p>No nearby keyword hits with usable distance.</p>'}
-        ${otherBaseline.length ? `<details class="more"><summary>Other baseline matches (${otherBaseline.length})</summary>
-          ${otherBaseline.map(row => card(row, data, 'baseline')).join('')}</details>` : ''}</section>
-      <section class="panel aware"><h2>Evidence-aware results</h2><p class="sub">Current service availability and slots unknown</p>
-        ${data.supported.map(row => card(row, data, 'supported')).join('') || '<p class="sub">No independently supported shortlist for this search.</p>'}
+      <section class="panel aware" aria-label="Evidence-aware results"><h2 class="section-label">Evidence-aware results</h2><p class="sub">Current service availability and slots unknown</p>
+        ${data.supported.map(row => card(row, data, 'supported')).join('')}
         ${!data.supported.length && topLead ? card(topLead, data, 'lead') : ''}
         ${mainExclusion ? card(mainExclusion, data, 'excluded') : ''}
         ${more.length ? `<details class="more"><summary>Other candidates (${more.length})</summary>${more.join('')}</details>` : ''}
-      </section>
-    </div>`;
+      </section>`;
   results.querySelector('#live-results')?.addEventListener('click', () => search({ useReplay: false }));
 }
 

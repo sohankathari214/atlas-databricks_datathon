@@ -1,3 +1,4 @@
+import { translatePage, validTranslation } from './page-translation.mjs';
 import { createServer } from 'node:http';
 import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
@@ -21,6 +22,7 @@ const scenarios = new Set(['palwal', 'bhagalpur']);
 const staticFiles = {
   '/': ['index.html', 'text/html'],
   '/style.css': ['style.css', 'text/css'],
+  '/page-language.js': ['page-language.js', 'text/javascript'],
   '/app.js': ['app.js', 'text/javascript'],
   '/care-routing.js': ['care-routing.js', 'text/javascript'],
 };
@@ -119,6 +121,20 @@ const server = createServer(async (request, response) => {
   const url = new URL(request.url, 'http://localhost');
   try {
     if (url.pathname === '/health') return send(response, 200, 'text/plain', 'ok');
+    if (url.pathname === '/api/page-translation') {
+      const json = (code, data) => send(response, code, 'application/json', JSON.stringify(data));
+      if (request.method !== 'POST') return json(405, {});
+      if (request.headers['content-type']?.split(';')[0].trim().toLowerCase() !== 'application/json') return json(415, {});
+      const input = await readIntake(request);
+      if (!validTranslation(input)) return json(400, {});
+      try {
+        const key = await openAIKey();
+        if (!key) return json(503, {});
+        return json(200, { strings: await translatePage(input, key, process.env.OPENAI_MODEL || 'gpt-6-luna') });
+      } catch {
+        return json(503, {});
+      }
+    }
     if (url.pathname === '/api/dialysis-phone-check') {
       const json = (code, data) => send(response, code, 'application/json', JSON.stringify(data));
       try {
