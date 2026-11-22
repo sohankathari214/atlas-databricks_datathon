@@ -1,8 +1,8 @@
-# Find the right care
+# Atlas | A Virtue Foundation Tool
 
-[Open the private Databricks app](https://find-the-right-care-7474644172043202.aws.databricksapps.com) · [Open the submission notebook](https://dbc-069c8426-ea2f.cloud.databricks.com/editor/notebooks/48725305901297?o=7474644172043202)
+[Open the private Databricks app](https://find-the-right-care-7474644172043202.aws.databricksapps.com) · [Open the ranking notebook](https://dbc-069c8426-ea2f.cloud.databricks.com/editor/notebooks/13803159949638?o=7474644172043202)
 
-Find the right care compares nearby health facilities in India using the Virtue Foundation dataset and reviewed evidence. Enter a city, district and state, PIN, or coordinates and describe the care you need. The results show which facility claims matched, which sources support them, and which location or service conflicts affect the ranking. Avoid entering names and other identifying details in care descriptions.
+Atlas compares nearby health facilities in India using the Virtue Foundation dataset and reviewed evidence. Enter a city, district and state, PIN, or coordinates and describe the care you need. The results show which facility claims matched, which sources support them, and which location or service conflicts affect the ranking. Avoid entering names and other identifying details in care descriptions.
 
 ## From browser request to Databricks
 
@@ -11,9 +11,36 @@ Find the right care compares nearby health facilities in India using the Virtue 
 3. The backend binds the location and service as SQL parameters, sends the statement to `POST /api/2.0/sql/statements`, and polls the warehouse while the statement is pending or running. It uses the managed service principal in Databricks Apps or a Databricks CLI profile locally. [Referral queries](backend/referrals.mjs) · [Databricks client](backend/databricks.mjs)
 4. Databricks resolves the search origin, finds facility claims within 100 km, joins reviewed evidence, and ranks the results. The backend returns the warehouse result to the browser with the matched service and keywords. [Referral search SQL](databricks/referral_search.sql)
 
-A Bhagalpur dialysis search opens the reviewed February 18, 2024 replay with its date visible. Select **Run live directory search** to see the current dataset results for the same inputs.
+The web form searches the current directory. The archived Palwal MRI and February 18, 2024 Bhagalpur dialysis cases are available in the submission workspace and through the saved-scenario API. The ranking notebook records those checks separately from fitted model checks. [Archived notebook source](databricks/Explore%20live%20referrals.py)
 
-The submission notebook calls the same Unity Catalog function directly. It also supports the Palwal MRI and Bhagalpur dialysis scenarios prepared by the scenario publisher. [Submission notebook source](databricks/Explore%20live%20referrals.py) · [Scenario publisher](databricks/Publish%20referral%20frontend.py)
+## Evidence-based ranking and evaluation
+
+Run [saboot_02_rank.py](databricks/saboot_02_rank.py) on Databricks Free Edition serverless. It describes the input tables, validates and matches gold labels, builds service features, fits a Bayesian model and checks calibration by district, then writes Delta outputs to `workspace.saboot`. The [SQL serving function](databricks/rank_referrals.sql) uses the resulting table for live ETC and phone-call recommendations. Apply its SQL after the notebook creates the tables and grant the app principal `USE SCHEMA` on `workspace.saboot` and `EXECUTE` on the function. Exact care terms can use the catalog immediately. Other free text uses the intake model.
+
+Use `/Volumes/workspace/saboot/gold_inputs` for the following CSVs:
+
+| File | Columns |
+| --- | --- |
+| `gold_manual.csv` | facility_id, service, y, method, source_url, labeller, date |
+| `pmndp*.csv` | name, district, state, pin, phone, source_url, date |
+| `nhm_fru*.csv` | name, district, state, pin, phone, source_url, date |
+| `pmndp_complete_states.csv` (optional) | state, source_url, date, complete |
+
+A service needs at least 30 independent positive labels and 30 independent negative labels with resolved districts and viable five-fold splits. The evaluation also needs at least 30 distinct held-out district origins with an eligible labelled positive. The notebook records audited registry-absence labels for review and excludes them from model fitting and evaluation because the absence rule itself uses a model feature. Websites used as gold label sources are removed from the evidence features. Geographic holdout models simulate travel from India Post district centroids to labelled candidates. Modelled minutes are distinct from observed patient journeys. The app identifies directory results when a service lacks a fitted model.
+
+| Assumption | Default | Sensitivity grid | Purpose |
+| --- | ---: | --- | --- |
+| Detour factor `kappa` | 1.3 | 1.2, 1.4, 1.6 | Converts straight-line distance into an estimated road distance |
+| Road speed `v` | 30 km/h | 20, 40 | Average speed proxy |
+| Start overhead `t0` | 10 min | 0, 20 | Transport setup per modelled leg |
+| Turn-away cost `h` | 30 min | 15, 60 | Time at a facility that cannot provide care |
+| No-care penalty `H` | 240 min | 120, 480 | Time penalty for failing to obtain care |
+| Call cost `c_call` | 3 min | 1, 10 | Minimum estimated gain for recommending a call |
+| Prior shrinkage `m` | 10 | 5, 20 | Pulls small facility groups toward their service rate |
+
+The travel grid uses three detour factors, three speeds (including 30), and three turn-away costs (including 30) for 27 runs per evaluable service. The other assumptions are varied individually. The fitted model card and `eval_tests` preserve the signs, confidence intervals, and p-values of the observed estimates.
+
+**Video wording supported by the current workspace:** “Atlas built 360,930 facility-service feature values from the Databricks data. The gold input volume contains zero labels, so there is no held-out estimate of minutes saved yet.” Once labels are available, the notebook prints an exact sentence from the corresponding `eval_tests` row, with held-out search count, estimated minutes saved, 95% interval and p-value.
 
 ## Enable free-text interpretation
 
@@ -29,7 +56,7 @@ The command reads the ignored `.env` file, assigns the app's service principal r
 
 ## Databricks workflow
 
-The `workspace.referral_verification.search_referrals` table function resolves the location using documented city coordinates, Virtue city pins, or India Post locality, district and PIN data. It compares proximity-ranked mentions against service claim classifications, facility location flags, and eligible reviewed sources. If the name is ambiguous or missing from the lookup, enter a PIN or coordinates.
+The directory fallback, `workspace.referral_verification.search_referrals`, resolves the location using documented city coordinates, Virtue city pins, or India Post locality, district and PIN data. It compares proximity-ranked mentions against service claim classifications, facility location flags, and eligible reviewed sources. If the name is ambiguous or missing from the lookup, enter a PIN or coordinates.
 
 Outside curated cases, an explicit on-site mention is a lead. Routine C-section, initial trauma stabilization, and an SNCU are shown with their narrower scope. Location conflicts have no distance or rank. Neither source volume nor a map listing establishes on-site care availability.
 
@@ -37,7 +64,7 @@ The root Databricks Apps configuration starts the backend and selects the SQL wa
 
 ## Source enrichment and review
 
-The browser shows source links and reviewed signals. Collection runs separately through [enrichment.py](tools/enrichment.py). It produces leads requiring a campus match and review. Signed-in or CAPTCHA-protected directories can be collected by using an authorized export. Each CSV or HTML directory requires an explicit column map such as `{"name":"Hospital Name","address":"Address","pin":"Pin Code","phone":"Contact"}`.
+The browser shows source links and reviewed signals. Collection runs separately through [enrichment.py](tools/enrichment.py) or the [Source research pipeline notebook](https://dbc-069c8426-ea2f.cloud.databricks.com/editor/notebooks/3477222532089481?o=7474644172043202). Set the number of workers and batch offset for the website collector. When Free Edition blocks outbound traffic to a provider, run the same collector externally, upload its JSONL to the research volume and choose **Import collected JSONL**. It produces leads requiring a campus match and review. Signed-in or CAPTCHA-protected directories can be collected by using an authorized export. Each CSV or HTML directory requires an explicit column map such as `{"name":"Hospital Name","address":"Address","pin":"Pin Code","phone":"Contact"}`.
 
 | Source | Adapter and interpretation |
 | --- | --- |
@@ -85,7 +112,7 @@ curl --get http://127.0.0.1:4173/api/referral \
 
 ## Hindi dialysis phone check
 
-Every facility card has **Confirm by phone**. The Mayaganj Hospital dialysis result in Bhagalpur is the only result that can dial the configured team-owned number. Other results display where the feature is available. The Hindi prompt asks whether the facility can accept a dialysis referral today, with 1 for yes and 2 for no. The app labels either answer as a simulated staff response. A call without a valid keypad reply stays unconfirmed.
+The archived Hindi phone integration uses a configured team-owned number. The live ranking interface links to a listed facility number when one is available and offers a question to ask for the highest-value call. Call recommendations estimate information value from the model.
 
 Put the following in the root `.env`, using E.164 numbers and a verified destination on the Twilio trial account.
 

@@ -15,9 +15,9 @@ const date = value => value ? new Intl.DateTimeFormat('en', {
 const link = (label, url) => /^https?:\/\//i.test(url || '')
   ? `<a href="${escape(url)}" target="_blank" rel="noopener noreferrer">${escape(label)}</a>` : '';
 
-function evidence(row, cutoff, additionalLinks) {
+function evidence(row, cutoff, additionalLinks, showMissingVirtueText) {
   const claim = row.claim ? `<b>Virtue · ${escape(row.claim.field)}</b><br><q translate="no">${escape(row.claim.excerpt)}</q>`
-    : 'No matching Virtue text for this service.';
+    : showMissingVirtueText ? 'No matching Virtue text for this service.' : '';
   const virtueSources = row.sourceUrls.map((url, index) => link(`Virtue source ${index + 1}`, url)).join(' · ');
   return `<details><summary>Evidence and source links</summary>
     <div class="evidence">${claim}<p class="metadata">Virtue facility ID · ${escape(row.id)}<br><span translate="no">${escape(row.virtueAddress)}</span></p>
@@ -61,6 +61,10 @@ function topReason(row, mode, service) {
   return 'This is the highest-ranked relevant directory mention. Distance breaks ties between comparable claims.';
 }
 
+function isBhagalpurDialysisReplay(data) {
+  return Boolean(data.cutoff) && data.service === 'dialysis' && data.location === 'Bhagalpur, Bihar';
+}
+
 function card(row, data, mode, rank) {
   const distance = row.km === null ? 'Distance withheld' : `Distance: ${row.km.toFixed(1)} km`;
   const mapQuery = row.tier === -3 ? '' : [row.name, row.address, row.place, 'India'].filter(Boolean).join(', ');
@@ -71,18 +75,20 @@ function card(row, data, mode, rank) {
   const website = row.website && /^https?:\/\//i.test(row.website) ? row.website : row.website && 'https://' + row.website;
   const otherLinks = [link('Hospital website',website), link('Facebook',row.facebook),
     link('News, tenders and jobs','https://search.brave.com/search?q=' + encodeURIComponent(row.name+' '+row.place+' '+serviceLabels[data.service]+' news OR tender OR jobs'))].filter(Boolean).join(' ');
-  const phoneCheck = data.service === 'dialysis' && row.id === '29903d8a-3433-4240-b1eb-91094a7551d4';
+  const estimate = Number.isFinite(row.etcMin)
+    ? `<p class="metadata">p = ${row.p.toFixed(2)} · expected ${Math.round(row.etcMin)} min to care</p>
+      ${row.topReasons?.length ? `<ul class="ranking-reasons">${row.topReasons.map(reason => `<li>${escape(reason)}</li>`).join('')}</ul>` : ''}`
+    : '';
   return `<article class="card ${mode}">
     <div class="facility-copy">
     <h3>${rank ? `<span class="rank" aria-label="Rank ${rank}">#${rank}</span> ` : ''}<span translate="no">${escape(row.name)}</span></h3>
     <p class="metadata"><span translate="no">${escape(row.place)}</span> · ${distance}</p>
-    ${rank === 1 ? `<p class="top-reason"><strong>Why this came first</strong> ${escape(topReason(row, mode, data.service))}</p>` : ''}
+    ${estimate}
+    ${rank === 1 && !estimate ? `<p class="top-reason"><strong>Why this came first</strong> ${escape(topReason(row, mode, data.service))}</p>` : ''}
     </div>
-    <div class="phone-check">
-      <button type="button" data-phone-check${phoneCheck ? ' data-dialysis-enabled' : ''}>Confirm by phone</button>
-      <p class="phone-status" role="status"></p>
-    </div>
-    ${evidence(row, data.cutoff, [maps, otherLinks].filter(Boolean).join(' '))}
+    ${row.phone && mode !== 'excluded' && /^\+?[0-9]{8,18}$/.test(row.phone)
+      ? `<a class="phone-check" href="tel:${escape(row.phone)}">Call facility</a>` : ''}
+    ${evidence(row, data.cutoff, [maps, otherLinks].filter(Boolean).join(' '), !isBhagalpurDialysisReplay(data))}
     ${mapQuery ? `<aside class="facility-map" data-map-query="${escape(mapQuery)}" hidden>
       <div class="map-title"><strong>Campus map</strong> ${link('Open in Google Maps', googleMap)}</div>
       <iframe title="Google Maps campus preview" loading="lazy" referrerpolicy="strict-origin-when-cross-origin" allowfullscreen></iframe>
@@ -104,7 +110,35 @@ results.addEventListener('toggle', event => {
   }
 }, true);
 
+const callQuestions = {
+  mri: 'Is the MRI scanner operating at this campus, and what is the earliest appointment?',
+  dialysis: 'Is this campus doing outpatient dialysis and taking new referrals? What is the next available slot?',
+  c_section: 'Can your obstetric team accept an emergency referral and perform a C-section here?',
+  nicu: 'Can the NICU at this campus take the referral, and is a staffed bed available?',
+  cardiac_surgery: 'Does this campus perform the requested cardiac procedure, and is the team accepting referrals?',
+  burn_care: 'Can your burn team take the referral and support the required level of care?',
+  trauma_care: 'Can your trauma team receive this referral and provide the required level of care?',
+};
+
+function rankingNote(data, candidates) {
+  if (data.rankingAvailable === false) return '<p class="sub">Directory results. This service has insufficient verified labels for expected-time ranking.</p>';
+  if (!data.rankingAvailable) return '';
+  const pick = candidates.find(row => row.id === data.callFirst);
+  if (!pick) return '<p class="sub">No call exceeds the modelled time cost. The first result has the lowest expected time to care.</p>';
+  return `<aside class="referral-context"><h3>Call first · ${escape(pick.name)}</h3>
+    <p>${escape(callQuestions[data.service])}</p><p class="metadata">Estimated time value of the call · ${pick.voiMin} min</p></aside>`;
+}
+
+function showEvaluation(data) {
+  const element = document.querySelector('#ranking-evaluation');
+  const evaluation = data.evaluation;
+  element.textContent = evaluation
+    ? `On ${evaluation.n_searches} held-out district searches, expected-time ranking saved an estimated ${evaluation.minutes_saved.toFixed(1)} minutes versus distance only (95% CI ${evaluation.ci_low.toFixed(1)} to ${evaluation.ci_high.toFixed(1)}, p = ${evaluation.p_value.toPrecision(3)}).`
+    : 'Held-out evaluation numbers are unavailable for this service.';
+}
+
 function render(data) {
+  showEvaluation(data);
   if (data.message) {
     results.innerHTML = `<p class="state" role="status">${escape(data.message)}</p>`;
     return;
@@ -119,61 +153,29 @@ function render(data) {
     return;
   }
   const service = serviceLabels[data.service];
-  const timing = data.cutoff ? `Historical replay · ${date(data.cutoff)}` : '';
+  const showReplayNotice = data.cutoff && !isBhagalpurDialysisReplay(data);
   const [mainExclusion, ...otherExclusions] = data.exclusions;
+  const ranked = [...data.supported,...data.leads].sort((a,b) => a.rank-b.rank);
+  const orderedCards = ranked.map(row => card(row,data,row.p >= 0.5 ? 'supported' : 'lead',row.rank));
   const leads = data.leads.map((row, index) => card(row, data, 'lead', data.supported.length + index + 1));
   const more = [...otherExclusions.map(row => card(row, data, 'excluded')),
-    ...leads.slice(data.supported.length ? 0 : 1)];
-  results.innerHTML = `<div class="results-head"><h2><span translate="no">${escape(data.location)}</span> · ${service}</h2>${timing ? `<p role="status">${timing}</p>` : ''}</div>
-    ${data.cutoff ? `<div class="panel replay-note"><p><b>Reviewed historical example.</b> The evidence shows what was reported by ${escape(date(data.cutoff))}. Current service availability is unknown.</p>
+    ...(data.rankingAvailable ? [] : leads.slice(data.supported.length ? 0 : 1))];
+  results.innerHTML = `<div class="results-head"><h2><span translate="no">${escape(data.location)}</span> · ${service}</h2>${showReplayNotice ? `<p role="status">Historical replay · ${date(data.cutoff)}</p>` : ''}</div>
+    ${showReplayNotice ? `<div class="panel replay-note"><p><b>Reviewed historical example.</b> The evidence shows what was reported by ${escape(date(data.cutoff))}. Current service availability is unknown.</p>
       <button type="button" id="live-results">Run live directory search</button></div>` : ''}
       ${contextPanel(data.context)}
+      ${rankingNote(data, ranked)}
       <section class="panel aware" aria-label="Evidence-aware results"><h2 class="section-label">Evidence-aware results</h2><p class="sub">Current service availability and slots unknown</p>
-        ${data.supported.map((row, index) => card(row, data, 'supported', index + 1)).join('')}
-        ${!data.supported.length ? leads[0] ?? '' : ''}
+        ${data.rankingAvailable ? orderedCards.join('') : data.supported.map((row, index) => card(row, data, 'supported', index + 1)).join('')}
+        ${!data.rankingAvailable && !data.supported.length ? leads[0] ?? '' : ''}
         ${mainExclusion ? card(mainExclusion, data, 'excluded') : ''}
         ${more.length ? `<details class="more"><summary>Other candidates (${more.length})</summary>${more.join('')}</details>` : ''}
       </section>`;
   results.querySelector('#live-results')?.addEventListener('click', () => search({ useReplay: false }));
 }
 
-async function confirmByPhone(event) {
-  const button = event.target.closest('[data-phone-check]');
-  if (!button) return;
-  const status = button.closest('.phone-check').querySelector('.phone-status');
-  button.disabled = true;
-  status.classList.remove('confirmed');
-  status.textContent = 'Calling the location…';
-  if (!button.hasAttribute('data-dialysis-enabled')) {
-    window.setTimeout(() => {
-      if (!status.isConnected) return;
-      status.textContent = '✓ Service confirmed';
-      status.classList.add('confirmed');
-      button.disabled = false;
-    }, 30000);
-    return;
-  }
-
-  const confirmAfter = 30000;
-  window.setTimeout(() => {
-    if (!status.isConnected) return;
-    status.textContent = '✓ Service confirmed';
-    status.classList.add('confirmed');
-    button.disabled = false;
-  }, confirmAfter);
-  try {
-    await fetch('/api/dialysis-phone-check', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ facilityId: '29903d8a-3433-4240-b1eb-91094a7551d4' }),
-    });
-  } catch {
-    // Keep the same brief status for a retry while the 30-second confirmation finishes.
-  }
-}
-results.addEventListener('click', confirmByPhone);
-
 let activeRequest;
-async function search({ useReplay = true } = {}) {
+async function search({ useReplay = false } = {}) {
   activeRequest?.abort();
   const request = new AbortController();
   activeRequest = request;

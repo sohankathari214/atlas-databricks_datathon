@@ -11,16 +11,17 @@ export function emergencyRoute() {
 
 export async function interpretCare(problem, catalog, { apiKey, model = 'gpt-6-luna', fetchResponse = fetch } = {}) {
   if (emergencySigns(problem)) return emergencyRoute();
-  if (!apiKey) {
-    const matches = catalog.flatMap(service => {
-      const keyword = service.keywords.find(word => normalize(word) === normalize(problem));
-      if (keyword) return [{ service, keyword }];
-      return normalize(service.label) === normalize(problem) ? [{ service, keyword: service.label }] : [];
-    });
-    if (matches.length !== 1) return { status: matches.length ? 'clarify' : 'setup_required' };
+  const term = normalize(problem);
+  const matches = catalog.flatMap(service => {
+    const keyword = service.keywords.find(word => normalize(word) === term);
+    if (keyword) return [{ service, keyword }];
+    return normalize(service.label) === term ? [{ service, keyword: service.label }] : [];
+  });
+  if (matches.length === 1) {
     const [{ service, keyword }] = matches;
     return { status: 'match', service: service.id, label: service.label, keywords: [keyword], method: 'exact' };
   }
+  if (!apiKey) return { status: matches.length ? 'clarify' : 'setup_required' };
 
   const choices = [...new Set(catalog.flatMap(service => service.keywords))];
   const response = await fetchResponse(endpoint, {

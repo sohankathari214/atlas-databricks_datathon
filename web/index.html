@@ -1,6 +1,6 @@
 <!doctype html>
-<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Find the right care</title><link rel="stylesheet" href="/style.css"><script src="/app.js" type="module"></script></head>
-<body><header><div class="shell header"><h1 class="brand"><span class="brand-mark" aria-hidden="true"></span> Find the right care</h1><div class="language-control" translate="no"><label for="language">Language / भाषा</label><select id="language"><option value="en">English</option><option value="hi">हिन्दी</option><option value="bn">বাংলা</option><option value="mr">मराठी</option><option value="ta">தமிழ்</option><option value="te">తెలుగు</option><option value="gu">ગુજરાતી</option><option value="kn">ಕನ್ನಡ</option><option value="ml">മലയാളം</option></select><span id="language-status" role="status"></span></div></div></header>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title translate="no">Atlas | A Virtue Foundation Tool</title><link rel="stylesheet" href="/style.css"><script src="/app.js" type="module"></script></head>
+<body><header><div class="shell header"><h1 class="brand" translate="no"><span class="brand-mark" aria-hidden="true"></span> Atlas | A Virtue Foundation Tool</h1><div class="language-control" translate="no"><label for="language">Language / भाषा</label><select id="language"><option value="en">English</option><option value="hi">हिन्दी</option><option value="bn">বাংলা</option><option value="mr">मराठी</option><option value="ta">தமிழ்</option><option value="te">తెలుగు</option><option value="gu">ગુજરાતી</option><option value="kn">ಕನ್ನಡ</option><option value="ml">മലയാളം</option></select><span id="language-status" role="status"></span></div></div></header>
 <main class="shell">
 <section class="search" aria-labelledby="search-heading">
 <h2 id="search-heading">Find care near you</h2>
@@ -16,8 +16,12 @@
 <summary>What determines the results?</summary>
 <dl class="decision-rules">
 <dt>Search inputs</dt><dd>Your location and a short description of the care needed. OpenAI suggests a care setting and search terms from the Databricks catalog. Common emergency warning phrases show immediate guidance. If a specific service is unclear, the search can start with general outpatient assessment. Databricks uses the service to retrieve and rank facilities, and resolves the search origin from the city, district, PIN or coordinates. Distances are geographic estimates.</dd>
-<dt>Needs confirmation in live searches</dt><dd>Explicit on-site claims come ahead of general or narrower claims, then distance breaks the tie. Reviewed source links provide context. These results are leads to confirm.</dd>
-<dt>Withheld</dt><dd>Live searches withhold results when location checks conflict or Virtue claims conflict, indicate absence, refer elsewhere or describe a plan.</dd>
+<dt>Service probability</dt><dd>Posterior log-odds equal prior log-odds plus the strongest fitted log likelihood ratio from each evidence family.</dd>
+<dt>Expected time to care</dt><dd>Travel time is 60 × detour factor × distance ÷ speed + setup time. The ranking adds the probability-weighted cost of being turned away, travelling to the best backup and possibly still obtaining no care.</dd>
+<dt>Value of a call</dt><dd>Current best expected time minus the probability-weighted expected time after a yes or a no, with a floor of zero. The strongest call clears the estimated call cost.</dd>
+<dt>Held-out evaluation</dt><dd id="ranking-evaluation">Evaluation appears for services with enough labelled district searches.</dd>
+<dt>Model assumptions</dt><dd>Detour factor 1.3 (1.2, 1.4, 1.6), road speed 30 km/h (20, 40), setup 10 min (0, 20), turn-away 30 min (15, 60), no-care penalty 240 min (120, 480), call cost 3 min (1, 10), prior shrinkage 10 (5, 20).</dd>
+<dt>Withheld facilities</dt><dd>Location conflicts have no travel estimate. Negative claims and a probability below 0.10 also withhold recommendations.</dd>
 </dl>
 <details class="more"><summary>Sources used and available for follow-up</summary>
 <p>Databricks uses Virtue facility text and pins, India Post location data, and reviewed evidence where available. The external links below are available for follow-up. Searches do not run the optional crawlers or external evidence lookups.</p>
@@ -25,5 +29,5 @@
 <li><a href="https://www.data.gov.in/resource/national-hospital-directory-geo-code-and-additional-parameters-updated-till-last-month">Hospital directory</a> · <a href="https://jk.data.gov.in/dataset-group-name/trfff">Public facilities and blood banks</a> · <a href="https://hem.nha.gov.in/search">PM-JAY</a> · <a href="https://pmndp.mohfw.gov.in/en/state-wise-details">Dialysis centres</a> · <a href="https://nhm.gov.in/nhm/nrhm.html/index1.php?lang=1&amp;level=2&amp;lid=218&amp;sublinkid=822">Emergency obstetric care</a> · <a href="https://nabh.co/find-a-healthcare-organisation/">NABH</a></li>
 <li><a href="https://docs.overturemaps.org/guides/places/">Overture</a>, map listings, hospital websites, news, tenders and public reviews can provide leads for review. Facility listings and historical care leave current availability unknown.</li>
 </ul></details></details>
-<a href="https://dbc-069c8426-ea2f.cloud.databricks.com/editor/notebooks/48725305901297?o=7474644172043202">Open Databricks notebook</a></footer>
+<a href="https://dbc-069c8426-ea2f.cloud.databricks.com/editor/notebooks/13803159949638?o=7474644172043202">Open Databricks notebook</a></footer>
 </main></body></html>

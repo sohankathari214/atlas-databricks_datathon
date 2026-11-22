@@ -100,7 +100,7 @@ async function handleIntake(request, response) {
     }
   }
   const normalizedLocation = location.toLowerCase().replace(/[,\s]+/g, ' ').trim();
-  const replay = input.useReplay !== false && interpretation.service === 'dialysis'
+  const replay = input.useReplay === true && interpretation.service === 'dialysis'
     && ['bhagalpur', 'bhagalpur bihar'].includes(normalizedLocation);
   const [result, context] = await Promise.all([
     replay ? readScenario('bhagalpur') : searchReferral(location, interpretation.service),

@@ -4,8 +4,13 @@ export function readScenario(scenario) {
   return queryJson('SELECT payload FROM workspace.referral_verification.frontend_scenarios WHERE scenario = :scenario', { scenario });
 }
 
-export function searchReferral(location, service) {
-  return queryJson('SELECT payload FROM workspace.referral_verification.search_referrals(:location, :service)', { location, service });
+export async function searchReferral(location, service) {
+  const parameters = { location, service };
+  const directory = () => queryJson('SELECT payload FROM workspace.referral_verification.search_referrals(:location, :service)', parameters);
+  if (service === 'emergency_care' || service === 'primary_care') return directory();
+  const ranked = await queryJson('SELECT payload FROM workspace.saboot.rank_referrals(:location, :service)', parameters);
+  if (ranked.rankingAvailable) return ranked;
+  return { ...await directory(), rankingAvailable: false };
 }
 
 export function referralContext(submittedAt) {

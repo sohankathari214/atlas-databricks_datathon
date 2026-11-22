@@ -17,10 +17,13 @@ dbutils.widgets.dropdown('source', 'Official hospital websites', [
     'Official hospital websites', 'Hospital directory · data.gov.in', 'Public facilities · data.gov.in',
     'Blood banks · data.gov.in', 'PM-JAY hospital finder', 'State free dialysis centres',
     'Emergency obstetric referral units', 'NABH accreditation', 'OpenStreetMap', 'Overture',
-    'Google Places location check', 'Brave news, tenders and jobs', 'Public reviews or Facebook export',
-    'Review staged leads'
+    'Google Places location check', 'Brave news, tenders and jobs', 'Find public reviews', 'Public reviews or Facebook export',
+    'Review staged leads', 'Import collected JSONL', 'Google Places status'
 ], 'Source')
 dbutils.widgets.text('batch_size', '3', 'Facilities per batch')
+dbutils.widgets.text('batch_offset', '0', 'Start after this many facility seeds')
+dbutils.widgets.text('crawl_workers', '4', 'Parallel website hosts (1–24)')
+dbutils.widgets.text('secret_scope', 'referral-research', 'Databricks API secret scope')
 dbutils.widgets.text('service', 'dialysis', 'Service')
 dbutils.widgets.text('source_input', '', 'CSV, HTML, GeoJSON or seed CSV path')
 dbutils.widgets.text('source_landing_url', '', 'Public source landing URL')
@@ -66,13 +69,17 @@ else:
         valid_ids = spark.table(CATALOG).select(F.col('unique_id').alias('facility_id')).distinct()
         accepted = reviewed.join(valid_ids, 'facility_id', 'left_semi').where(
             F.col('source_type').isin('hospital_website','hospital_directory','public_facilities','blood_banks',
-              'pmjay','pmndp','obstetric_fru','nabh','OpenStreetMap','Overture','web_search','review')
+              'pmjay','pmndp','obstetric_fru','nabh','OpenStreetMap','Overture','web_search','review','news_report','hospital_page')
             & F.col('url').rlike(r'^https?://') & F.length(F.trim('rationale')).gt(0)
         )
         accepted.createOrReplaceTempView('approved_external_leads')
         spark.sql(f'''MERGE INTO {REVIEWED} AS target USING approved_external_leads AS source
           ON target.signal_id=source.lead_id
-          WHEN MATCHED THEN UPDATE SET *
+          WHEN MATCHED AND source.checked >= target.checked THEN UPDATE SET
+            target.facility_id=source.facility_id,target.service=source.service,target.source_type=source.source_type,
+            target.publisher=source.publisher,target.url=source.url,target.checked=source.checked,
+            target.event=source.event,target.published=source.published,target.excerpt=source.excerpt,
+            target.rationale=source.rationale,target.review_status='reviewed'
           WHEN NOT MATCHED THEN INSERT
             (signal_id,facility_id,service,source_type,publisher,url,checked,event,published,excerpt,rationale,review_status)
             VALUES (source.lead_id,source.facility_id,source.service,source.source_type,source.publisher,
@@ -92,6 +99,8 @@ else:
         landing = dbutils.widgets.get('source_landing_url').strip()
         publisher = dbutils.widgets.get('publisher').strip() or source
         env = os.environ.copy()
+        scope = dbutils.widgets.get('secret_scope')
+        temp = tempfile.TemporaryDirectory(prefix='atlas-collection-')
         argv = [sys.executable, adapter]
         source_types = {
           'Hospital directory · data.gov.in':'hospital_directory',
@@ -100,51 +109,70 @@ else:
           'Emergency obstetric referral units':'obstetric_fru','NABH accreditation':'nabh',
           'Public reviews or Facebook export':'review'
         }
-        if source == 'Official hospital websites':
+        if source == 'Import collected JSONL':
+            path = Path(input_path).resolve()
+            if not path.is_relative_to(Path('/Volumes')) or path.suffix != '.jsonl':
+                raise ValueError('Select a JSONL file under /Volumes/.')
+        elif source == 'Official hospital websites':
             pages = 10
+            offset = max(0, int(dbutils.widgets.get('batch_offset')))
+            workers = int(dbutils.widgets.get('crawl_workers'))
             seeds = spark.sql(f'''SELECT unique_id facility_id,name,officialWebsite website,
               concat_ws(', ',address_city,address_stateOrRegion) place,
               concat_ws(', ',address_line1,address_line2,address_city,address_stateOrRegion,address_zipOrPostcode) address
-              FROM {CATALOG} WHERE nullif(trim(officialWebsite),'') IS NOT NULL ORDER BY unique_id LIMIT {batch}''')
-            seed_file = str(volume_dir / 'current_website_seeds.csv')
+              FROM {CATALOG} WHERE nullif(trim(officialWebsite),'') IS NOT NULL ORDER BY unique_id LIMIT {batch} OFFSET {offset}''')
+            seed_file = str(Path(temp.name) / 'website_seeds.csv')
             pandas_seeds = seeds.toPandas()
             pandas_seeds.to_csv(seed_file,index=False,quoting=csv.QUOTE_MINIMAL)
-            argv += ['crawl',seed_file,'--limit',str(batch),'--pages',str(pages)]
+            argv += ['crawl',seed_file,'--limit',str(batch),'--pages',str(pages),'--workers',str(workers)]
         elif source in source_types:
             if not input_path or not landing:
                 raise ValueError('Provide the authorized source export and its public source landing URL.')
             mapping = json.loads(dbutils.widgets.get('column_map'))
             if not isinstance(mapping,dict): raise ValueError('Column mapping must be a JSON object.')
-            mapping_file=str(volume_dir / 'current_column_map.json')
-            dbutils.fs.put(mapping_file,json.dumps(mapping),overwrite=True)
+            mapping_file=str(Path(temp.name) / 'column_map.json')
+            Path(mapping_file).write_text(json.dumps(mapping))
             argv += ['directory',input_path,'--source-type',source_types[source], '--publisher',publisher,
                      '--url',landing,'--columns',mapping_file]
         elif source in ('OpenStreetMap','Overture'):
             if not input_path or not landing: raise ValueError('Provide an attributable point GeoJSON extract and its source landing page.')
             argv += ['open-maps',input_path,'--provider',source,'--url',landing]
-        elif source == 'Google Places location check':
-            if not input_path: raise ValueError('Provide a facility seed CSV with facility_id, name, address, and place columns.')
+        elif source in ('Google Places location check','Google Places status'):
+            if not input_path: raise ValueError('Provide a facility seed CSV or the operator-reviewed Place ID for status.')
             secret=dbutils.widgets.get('google_secret_key').strip()
             if not secret: raise ValueError('Provide the Google Places secret key name.')
-            env['GOOGLE_PLACES_API_KEY']=dbutils.secrets.get(scope='referral-voice',key=secret)
-            argv += ['google-places',input_path,'--limit',str(batch)]
-        elif source == 'Brave news, tenders and jobs':
+            env['GOOGLE_PLACES_API_KEY']=dbutils.secrets.get(scope=scope,key=secret)
+            argv += ['google-status',input_path] if source == 'Google Places status' else ['google-places',input_path,'--limit',str(min(batch,5000))]
+        elif source in ('Brave news, tenders and jobs','Find public reviews'):
             if not input_path: raise ValueError('Provide a facility seed CSV with facility_id, name, address, and place columns.')
             secret=dbutils.widgets.get('brave_secret_key').strip()
             if not secret: raise ValueError('Provide the Brave Search secret key name.')
-            env['BRAVE_SEARCH_API_KEY']=dbutils.secrets.get(scope='referral-voice',key=secret)
+            env['BRAVE_SEARCH_API_KEY']=dbutils.secrets.get(scope=scope,key=secret)
             argv += ['brave',input_path,'--limit',str(batch),'--service',dbutils.widgets.get('service')]
-        completed=subprocess.run(argv,capture_output=True,text=True,timeout=14400,env=env)
-        if completed.returncode: raise RuntimeError('Collection adapter failed: '+completed.stderr[-2500:])
-        records=[json.loads(line) for line in completed.stdout.splitlines() if line.strip()]
+            if source == 'Find public reviews':
+                argv += ['--reviews']
+        if source == 'Import collected JSONL':
+            with path.open(encoding='utf-8') as content:
+                records = [json.loads(line) for line in content if line.strip()]
+        else:
+            completed = subprocess.run(argv,capture_output=True,text=True,timeout=14400,env=env)
+            if completed.returncode:
+                raise RuntimeError('Collection adapter failed: '+completed.stderr[-2500:])
+            if completed.stderr:
+                print(completed.stderr[-2500:])
+            records = [json.loads(line) for line in completed.stdout.splitlines() if line.strip()]
         # Google Places terms prohibit storing returned Google content in facility research tables.
-        if source == 'Google Places location check':
+        if source in ('Google Places location check','Google Places status'):
             display(spark.createDataFrame(records) if records else spark.createDataFrame([], 'facility_id string, google_place_ids array<string>, maps_links array<string>'))
             print(f'{len(records)} operator-only location lookups. Results were not persisted.')
         else:
             normalized=[]
+            allowed = {'hospital_website','hospital_directory','public_facilities','blood_banks','pmjay','pmndp',
+                       'obstetric_fru','nabh','OpenStreetMap','Overture','web_search','review','news_report','hospital_page'}
             for record in records:
-                record.setdefault('review_status','lead')
+                if record.get('source_type') not in allowed:
+                    continue
+                record['review_status'] = 'lead'
                 record.setdefault('checked',None)
                 record.setdefault('facility_id',None)
                 record.setdefault('service',None)
@@ -158,18 +186,20 @@ else:
                   ('facility_id','service','source_type','url','excerpt','name','map_id')).encode()).hexdigest()
                 normalized.append(record)
             if normalized:
-                frame=spark.createDataFrame(normalized)
-                for column, kind in [('checked','date'),('event','date'),('published','date'),('latitude','double'),('longitude','double'),('existence_confidence','double')]:
-                    if column in frame.columns:
-                        frame=frame.withColumn(column,F.expr('try_cast(`' + column + '` as ' + kind + ')'))
-                    elif column in ('latitude','longitude','existence_confidence'):
-                        frame=frame.withColumn(column,F.lit(None).cast(kind))
-                valid_ids=spark.table(CATALOG).select(F.col('unique_id').alias('valid_facility_id')).distinct()
-                frame=frame.join(valid_ids,frame.facility_id==F.col('valid_facility_id'),'left').drop('valid_facility_id')
-                frame=frame.select(*spark.table(LEADS).columns)
+                schema = spark.table(LEADS).schema
+                columns = schema.fieldNames()
+                def as_text(value):
+                    return json.dumps(value,ensure_ascii=False) if isinstance(value,(dict,list)) else str(value) if value is not None else None
+                frame = spark.createDataFrame([tuple(as_text(row.get(c)) for c in columns) for row in normalized],
+                                              ', '.join(f'{c} string' for c in columns))
+                frame = frame.select(*[F.expr(f'try_cast({field.name} as {field.dataType.simpleString()})').alias(field.name)
+                                       for field in schema])
+                frame = frame.where(F.col('url').rlike(r'^https?://') & F.col('checked').isNotNull()).dropDuplicates(['lead_id'])
                 frame.createOrReplaceTempView('incoming_research_leads')
                 spark.sql(f'''MERGE INTO {LEADS} target USING incoming_research_leads source ON target.lead_id=source.lead_id
-                  WHEN MATCHED THEN UPDATE SET * WHEN NOT MATCHED THEN INSERT *''')
+                  WHEN MATCHED AND target.review_status='lead' THEN UPDATE SET *
+                  WHEN NOT MATCHED THEN INSERT *''')
+            temp.cleanup()
             display(spark.table(LEADS).where("review_status = 'lead'").orderBy(F.col('checked').desc_nulls_last()).limit(100))
             print(f'{len(normalized)} leads staged. Existing demo scenario snapshots were not modified.')
 
@@ -185,4 +215,4 @@ else:
 # MAGIC - Only reviewed records with a known Virtue facility ID, source URL, and reviewer rationale can be merged into the evidence table.
 # MAGIC
 # MAGIC ## Crawl scale
-# MAGIC The challenge estimates 8,400 facilities. A single 8,400-site run with the maximum ten service pages per site can issue about 92,400 page requests. With one-second per-host delay alone this exceeds 25 hours serially across sites; the stated 2–3 hours requires parallel workers. This notebook starts with small bounded batches. To scale, use a scheduled multi-worker job that preserves per-host pacing, robots rules, retries, and resumable checkpoints.
+# MAGIC The challenge estimates 8,400 facilities. A single 8,400-site run with the maximum ten service pages per site can issue about 92,400 page requests. With one-second per-host delay alone this exceeds 25 hours serially across sites; the stated 2–3 hours requires parallel workers. Set a batch offset and run independent host groups in parallel. Use the same batch order to resume. When Free Edition blocks an external host, run the same adapter externally and import the collected JSONL through an authorized Unity Catalog volume.

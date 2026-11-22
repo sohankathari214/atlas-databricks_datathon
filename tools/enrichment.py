@@ -1,8 +1,11 @@
 """Collect source leads for human review. This command is separate from app search."""
 import argparse
 import csv
+from concurrent.futures import ThreadPoolExecutor
+from collections import defaultdict
 from datetime import date
 from html.parser import HTMLParser
+from urllib.error import HTTPError
 import json
 import ipaddress
 from io import BytesIO
@@ -62,7 +65,12 @@ def request(url, headers=None, body=None, cap=2_000_000):
 def allowed_by_robots(url):
     robots_url = urljoin(url, '/robots.txt')
     rules = RobotFileParser(robots_url)
-    content, _ = request(robots_url, cap=250_000)
+    try:
+        content, _ = request(robots_url, cap=250_000)
+    except HTTPError as error:
+        if error.code not in (404,410):
+            raise
+        content = b''
     rules.parse(content.decode('utf-8','replace').splitlines())
     if not rules.can_fetch(AGENT,url):
         raise ValueError('robots.txt disallows the requested path')
@@ -97,8 +105,8 @@ class Page(HTMLParser):
             self.parts.append(text.strip())
 
 
-def website_leads(args):
-    for row in seeds(args.input, args.limit):
+def crawl_host(rows, pages):
+    for row in rows:
         home = row['website'].strip()
         if not home:
             continue
@@ -116,13 +124,17 @@ def website_leads(args):
             delay = max(1, rules.crawl_delay(AGENT) or rules.crawl_delay('*') or 1)
             queue = [home]
             seen = set()
-            while queue and len(seen) <= args.pages:
+            while queue and len(seen) <= pages:
                 url = queue.pop(0)
                 if url in seen or not rules.can_fetch(AGENT, url):
                     continue
                 seen.add(url)
                 time.sleep(delay)
-                page_body, final = request(url)
+                try:
+                    page_body, final = request(url)
+                except Exception as error:
+                    print(f'Page unavailable for {row["facility_id"]} ({type(error).__name__})', file=sys.stderr)
+                    continue
                 if urlsplit(final).hostname != host:
                     continue
                 page = Page()
@@ -140,6 +152,27 @@ def website_leads(args):
                                      rationale='Keyword excerpt from the supplied official website. Confirm service, context and campus.')
         except Exception as error:
             print(f'Skipped source for {row.get("facility_id", "")} ({type(error).__name__})', file=sys.stderr)
+
+
+def website_leads(args):
+    groups = defaultdict(list)
+    for row in seeds(args.input, args.limit, args.offset):
+        value = row['website'].strip()
+        try:
+            host = urlsplit(value if '://' in value else 'https://' + value).hostname
+        except ValueError:
+            continue
+        if host:
+            groups[host.removeprefix('www.')].append(row)
+
+    def collect(rows):
+        return list(crawl_host(rows, args.pages))
+
+    # A worker owns one entire host group, so no two facilities race the same host.
+    with ThreadPoolExecutor(max_workers=args.workers) as pool:
+        for group in pool.map(collect, groups.values()):
+            yield from group
+    print(f'Crawl batch: {sum(map(len, groups.values()))} facility seeds across {len(groups)} hosts.', file=sys.stderr)
 
 
 def source_leads(args):
@@ -186,15 +219,15 @@ def source_leads(args):
 
 
 def tabular_leads(args):
+    from io import StringIO
     mapping = json.loads(Path(args.columns).read_text())
     source = args.input
     if source.startswith(('https://','http://')):
         allowed_by_robots(source)
         data, final_url = request(source,cap=35_000_000)
         if urlsplit(final_url).path.lower().endswith('.csv') or args.format == 'csv':
-            rows = list(csv.DictReader(data.decode('utf-8-sig').splitlines()))
+            rows = list(csv.DictReader(StringIO(data.decode('utf-8-sig'))))
         else:
-            from io import StringIO
             import pandas as pd
             rows = pd.read_html(StringIO(data.decode('utf-8','replace')),keep_default_na=False)[args.table].to_dict('records')
     elif source.lower().endswith(('.html', '.htm')) or args.format == 'html':
@@ -205,10 +238,11 @@ def tabular_leads(args):
             rows = list(csv.DictReader(infile))
     for row in rows:
         fields = {field: str(row[column]).strip() for field, column in mapping.items()
-                  if field in {'facility_id','name','place','address','pin','phone','latitude','longitude','excerpt','event','published'}
+                  if field in {'facility_id','name','place','address','pin','phone','latitude','longitude','excerpt','event','published','service','url'}
                   and column in row and str(row[column]).strip()}
         if fields.get('name') or fields.get('facility_id'):
-            yield record(args.source_type,args.publisher,args.url,**fields,
+            url = fields.pop('url',args.url)
+            yield record(args.source_type,args.publisher,url,**fields,
                          rationale='Directory, registry, or review lead. Confirm the exact campus and scope before use.')
 
 
@@ -231,21 +265,25 @@ def map_leads(args):
                      rationale='Map-place signal. Operating status and existence confidence describe the place, not its services or slots.')
 
 
-def seeds(filename, limit):
+def seeds(filename, limit, offset=0):
     from itertools import islice
     with open(filename, encoding='utf-8-sig', newline='') as infile:
-        yield from islice(csv.DictReader(infile),limit)
+        yield from islice(csv.DictReader(infile),offset,offset+limit)
 
 
 def brave_leads(args):
     key = os.environ['BRAVE_SEARCH_API_KEY']
     for row in seeds(args.input,args.limit):
-        for topic in ('news','tender procurement','job vacancies'):
+        topics = ('reviews',) if args.reviews else ('news','tender procurement','job vacancies')
+        for topic in topics:
             terms = ' '.join([row['name'],row.get('place',''),args.service.replace('_',' '),topic])
+            if args.reviews and row.get('facebook'):
+                yield record('review','Virtue Facebook link',row['facebook'],facility_id=row['facility_id'],service=args.service,
+                             rationale='Check public reviews for a campus-specific anecdote.')
             url = 'https://api.search.brave.com/res/v1/web/search?' + urlencode({'q':terms,'count':3})
             body,_ = request(url, {'Accept':'application/json','X-Subscription-Token':key})
             for hit in (json.loads(body).get('web') or {}).get('results',[]):
-                yield record('web_search','Brave Search',hit['url'],facility_id=row['facility_id'],service=args.service,
+                yield record('review' if args.reviews else 'web_search','Brave Search',hit['url'],facility_id=row['facility_id'],service=args.service,
                              excerpt=hit.get('title',''), rationale=f'{topic} discovery result. Read and cite the original source directly.')
             time.sleep(1)
 
@@ -291,6 +329,8 @@ def main():
     crawl=modes.add_parser('crawl')
     crawl.add_argument('input')
     crawl.add_argument('--limit', type=positive, required=True)
+    crawl.add_argument('--offset', type=int, default=0)
+    crawl.add_argument('--workers', type=int, choices=range(1,25), default=4)
     crawl.add_argument('--pages', type=int, choices=range(0,11),default=10)
     crawl.set_defaults(run=website_leads)
     sources=modes.add_parser('sources')
@@ -314,6 +354,7 @@ def main():
     brave=modes.add_parser('brave')
     brave.add_argument('input')
     brave.add_argument('--limit',type=positive,required=True)
+    brave.add_argument('--reviews', action='store_true')
     brave.add_argument('--service',choices=SERVICE,required=True)
     brave.set_defaults(run=brave_leads)
     google=modes.add_parser('google-places')
@@ -324,6 +365,8 @@ def main():
     status.add_argument('place_id')
     status.set_defaults(run=google_status)
     args=parser.parse_args()
+    if getattr(args,'offset',0) < 0:
+        parser.error('offset must be nonnegative')
     for candidate in args.run(args):
         print(json.dumps(candidate,ensure_ascii=False))
 
