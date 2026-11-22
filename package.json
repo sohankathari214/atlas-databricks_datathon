@@ -4,6 +4,8 @@
   "type": "module",
   "scripts": {
     "start": "node backend/server.mjs",
-    "configure:llm": "node tools/configure-openai.mjs"
+    "configure:llm": "node tools/configure-openai.mjs",
+    "configure:voice": "node tools/configure-twilio.mjs",
+    "start:voice-relay": "node tools/twilio-voice-relay.mjs"
   }
 }

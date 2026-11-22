@@ -78,12 +78,17 @@ function card(row, data, mode) {
   const website = row.website && /^https?:\/\//i.test(row.website) ? row.website : row.website && 'https://' + row.website;
   const otherLinks = [link('Hospital website',website), link('Facebook',row.facebook),
     link('News, tenders and jobs','https://search.brave.com/search?q=' + encodeURIComponent(row.name+' '+row.place+' '+serviceLabels[data.service]+' news OR tender OR jobs'))].filter(Boolean).join(' ');
+  const phoneCheck = data.service === 'dialysis' && row.id === '29903d8a-3433-4240-b1eb-91094a7551d4';
   return `<article class="card ${mode}">
     <h3>${rank ? `<span class="rank">#${rank}</span> ` : ''}${escape(row.name)}</h3>
     <p class="metadata">${escape(row.place)} · ${distance}</p>
     ${mode === 'baseline' ? '' :
     `<div class="status">${escape(status)}</div><p class="reason">${escape(reason)}</p>
     ${mode === 'supported' || mode === 'lead' ? `<p class="next"><b>Ask the facility</b> · ${escape(check)}</p>` : ''}`}
+    <div class="phone-check">
+      <button type="button" data-phone-check${phoneCheck ? ' data-dialysis-enabled' : ''}>Confirm by phone</button>
+      <p class="phone-status" role="status"></p>
+    </div>
     ${evidence(row, data.cutoff, [maps, otherLinks].filter(Boolean).join(' '))}
   </article>`;
 }
@@ -126,6 +131,49 @@ function render(data) {
     </div>`;
   results.querySelector('#live-results')?.addEventListener('click', () => search({ useReplay: false }));
 }
+
+const phoneMessages = {
+  yes: 'Simulated staff response: Yes, accepting dialysis referrals today.',
+  no: 'Simulated staff response: No, not accepting dialysis referrals today.',
+  unconfirmed: 'Unconfirmed: No valid keypad response.',
+  setup_required: 'Phone verification needs the Twilio credentials and verified team number.',
+  busy: 'A phone check is already in progress.',
+  limit: 'The phone-check limit for this app session has been reached.',
+  provider_error: 'Unconfirmed: Twilio could not complete the phone check.',
+  not_found: 'Unconfirmed: The call status is no longer available.',
+};
+
+async function confirmByPhone(event) {
+  const button = event.target.closest('[data-phone-check]');
+  if (!button) return;
+  const status = button.closest('.phone-check').querySelector('.phone-status');
+  if (!button.hasAttribute('data-dialysis-enabled')) {
+    status.textContent = 'Phone confirmation is available for the Mayaganj Hospital dialysis result in Bhagalpur.';
+    return;
+  }
+  button.disabled = true;
+  status.textContent = 'Calling the team phone…';
+  try {
+    const response = await fetch('/api/dialysis-phone-check', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ facilityId: '29903d8a-3433-4240-b1eb-91094a7551d4' }),
+    });
+    let update = await response.json();
+    const id = update.id;
+    while (update.status === 'pending' && button.isConnected) {
+      await new Promise(resolve => setTimeout(resolve, 2200));
+      if (!button.isConnected) return;
+      const check = await fetch('/api/dialysis-phone-check?' + new URLSearchParams({ id }));
+      update = await check.json();
+    }
+    status.textContent = phoneMessages[update.status] ?? phoneMessages.provider_error;
+  } catch {
+    status.textContent = phoneMessages.provider_error;
+  } finally {
+    button.disabled = false;
+  }
+}
+results.addEventListener('click', confirmByPhone);
 
 let activeRequest;
 async function search({ useReplay = true } = {}) {

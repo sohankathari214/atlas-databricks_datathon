@@ -11,3 +11,5 @@
 .emergency-guidance{background:#fff3eb;border:2px solid #a44927;border-radius:12px;padding:13px 17px;margin-top:12px;color:#692c17}.emergency-guidance h2{font-size:1.15rem;margin:0 0 3px}.emergency-guidance a{color:inherit;font-weight:700}.emergency-listings{margin-top:12px}.emergency-listings summary{font-weight:700;cursor:pointer}
 
 .replay-note{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:8px 16px;margin-bottom:12px}.replay-note p{font-size:.9rem}.replay-note button{border:1px solid var(--line);background:var(--light);color:var(--green);border-radius:8px;padding:7px 10px;font-weight:650}
+
+.phone-check{margin-top:10px}.phone-check button{background:var(--green);color:white;border:0;border-radius:7px;padding:7px 11px;font-weight:650}.phone-check button:disabled{opacity:.65;cursor:wait}.phone-check .metadata,.phone-status{margin-top:5px}.phone-status{font-size:.87rem;font-weight:650}

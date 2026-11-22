@@ -6,6 +6,7 @@ import { emergencyRoute, interpretCare } from './care-intake.mjs';
 import { emergencySigns } from '../web/care-routing.js';
 import { databricksRequest } from './databricks.mjs';
 import { readScenario, searchReferral, serviceCatalog } from './referrals.mjs';
+import { phoneCheckStatus, startPhoneCheck } from './phone-check.mjs';
 
 if (!process.env.DATABRICKS_APP_PORT) {
   try {
@@ -118,6 +119,28 @@ const server = createServer(async (request, response) => {
   const url = new URL(request.url, 'http://localhost');
   try {
     if (url.pathname === '/health') return send(response, 200, 'text/plain', 'ok');
+    if (url.pathname === '/api/dialysis-phone-check') {
+      const json = (code, data) => send(response, code, 'application/json', JSON.stringify(data));
+      try {
+        if (request.method === 'GET') {
+          const result = await phoneCheckStatus(url.searchParams.get('id'));
+          return json(result.status === 'not_found' ? 404 : 200, result);
+        }
+        if (request.method !== 'POST') return json(405, { status: 'invalid_request' });
+        if (request.headers['content-type']?.split(';')[0].trim().toLowerCase() !== 'application/json') {
+          return json(415, { status: 'invalid_request' });
+        }
+        const input = await readIntake(request);
+        if (input?.facilityId !== '29903d8a-3433-4240-b1eb-91094a7551d4') {
+          return json(400, { status: 'invalid_request' });
+        }
+        const result = await startPhoneCheck();
+        return json(result.status === 'pending' ? 202 : 200, result);
+      } catch (error) {
+        console.error('Phone check failed:', error.message);
+        return json(502, { status: 'provider_error' });
+      }
+    }
     if (url.pathname === '/api/referral') {
       if (request.method === 'POST') return await handleIntake(request, response);
       if (request.method !== 'GET') return send(response, 405, 'application/json', '{"error":"Unsupported request method."}');

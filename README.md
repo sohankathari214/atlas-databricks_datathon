@@ -82,3 +82,20 @@ curl --get http://127.0.0.1:4173/api/referral \
   --data-urlencode 'location=Jaipur, Rajasthan' \
   --data-urlencode 'service=c_section'
 ```
+
+## Hindi dialysis phone check
+
+Every facility card has **Confirm by phone**. The Mayaganj Hospital dialysis result in Bhagalpur is the only result that can dial the configured team-owned number. Other results display where the feature is available. The Hindi prompt asks whether the facility can accept a dialysis referral today, with 1 for yes and 2 for no. The app labels either answer as a simulated staff response. A call without a valid keypad reply stays unconfirmed.
+
+Put the following in the root `.env`, using E.164 numbers and a verified destination on the Twilio trial account.
+
+```dotenv
+TWILIO_ACCOUNT_SID=
+TWILIO_AUTH_TOKEN=
+TWILIO_FROM_NUMBER=
+TWILIO_TEST_TO_NUMBER=
+```
+
+For Twilio trial Voice, run `cloudflared tunnel --url http://127.0.0.1:4189` and set `REFERRAL_VOICE_RELAY_URL` in `.env` to the HTTPS URL it prints. Set `REFERRAL_VOICE_RELAY_TOKEN` to 64 random hex characters, then run `npm run start:voice-relay`. Keep both processes running during the presentation. The relay accepts authenticated Databricks requests and gives Twilio a signed URL for each callback. The phone numbers and Twilio token stay in the local `.env`.
+
+Run `npm run configure:voice` with the Databricks CLI authenticated. Setup checks the relay and saves its connection details to a dedicated Databricks secret scope. If using a Studio-enabled account, omit the relay variables to validate and publish the [Studio flow](tools/hindi-dialysis-flow.json). Set `TWILIO_FLOW_SID` to reuse a specific flow. Setup does not dial the phone.
