@@ -5,7 +5,6 @@ colors:
   canvas: "#ffffff"
   surface: "#ffffff"
   search-surface: "#fff2f8"
-  replay-surface: "#fceaf3"
   ink: "#2a1727"
   muted: "#685163"
   rule: "#e7d6e1"
@@ -61,7 +60,6 @@ typography:
 rounded:
   control: "8px"
   search-panel: "18px"
-  replay-panel: "6px"
   circle: "50%"
 spacing:
   xs: "4px"
@@ -88,12 +86,6 @@ components:
     rounded: "{rounded.control}"
     padding: "10px 25px"
     height: "46px"
-  button-replay:
-    backgroundColor: "transparent"
-    textColor: "{colors.accent}"
-    rounded: "{rounded.control}"
-    padding: "10px 0"
-    height: "42px"
   input-search:
     backgroundColor: "{colors.surface}"
     textColor: "{colors.ink}"
@@ -134,7 +126,7 @@ Facility rows place the evidence status and its explanation beside the follow-up
 
 ### Primary
 
-Raspberry fills primary actions. Deep rose marks links, the compass, replay context, and keyboard focus.
+Raspberry fills primary actions. Deep rose marks links, the compass and keyboard focus.
 
 ### Secondary
 
@@ -142,21 +134,21 @@ Warm red marks withheld results and emergency guidance. The alert uses a pale wa
 
 ### Neutral
 
-White is the page ground and field surface. Blush frames the search and replay. Dark plum carries headings, muted plum carries metadata, and soft rose dividers separate rows.
+White is the page ground and field surface. Blush frames the search. Dark plum carries headings, muted plum carries metadata, and soft rose dividers separate rows.
 
 ## Typography
 
-Georgia with Times New Roman fallback sets the wordmark, the search heading, and facility names. The system sans-serif sets labels, actions, metadata, and evidence copy. Ranks and facility metadata use tabular numerals. Explanations and follow-up prompts are capped at `72ch`, and evidence and replay copy at `75ch`.
+Georgia with Times New Roman fallback sets the wordmark, the search heading, and facility names. The system sans-serif sets labels, actions, metadata, and evidence copy. Ranks and facility metadata use tabular numerals. Explanations and follow-up prompts are capped at `72ch`, and evidence copy at `75ch`.
 
 ## Layout
 
 The centered shell is capped at `1280px` with at least `48px` of gutter on each side above the tablet breakpoint. The masthead places the language picker opposite the wordmark. The blush search panel leads with “Find care near you” and places two equal fields beside the primary action. Facility rows pair a flexible text column with an action column capped at `13rem`. Open evidence spans the row.
 
-At `850px` and below, gutters shrink to `24px`, the query heading drops to `2.75rem`, and the replay line can wrap. At `650px` and below, gutters shrink to `16px`. Search, results, and footer stack, the search action fills the width, and the phone action aligns with the facility text. The query heading drops to `2.125rem` and facility names to `1.625rem`.
+At `850px` and below, gutters shrink to `24px`, the query heading drops to `2.75rem`. At `650px` and below, gutters shrink to `16px`. Search, results, and footer stack, the search action fills the width, and the phone action aligns with the facility text. The query heading drops to `2.125rem` and facility names to `1.625rem`.
 
 ## Elevation & Depth
 
-One-pixel rules and vertical spacing define the masthead, search, results, and expanded evidence on a flat canvas. The search and replay use blush fills. Emergency guidance uses a warm surface and dark red text.
+One-pixel rules and vertical spacing define the masthead, search, results, and expanded evidence on a flat canvas. The search panel uses a blush fill. Emergency guidance uses a warm surface and dark red text.
 
 ## Shapes
 
@@ -165,7 +157,6 @@ Inputs, selects, and buttons have gently rounded corners. Facility rows and the 
 ## Components
 
 - **Filled action** uses white type and a raspberry background. The search variant matches the fields’ minimum height. A deeper raspberry fill marks hover, and an in-progress action reduces opacity and shows a wait cursor.
-- **Replay action** uses an underlined rose label on a transparent button. It sits alongside the replay note and can wrap below it on smaller screens.
 - **Fields and language picker** use white fill and a muted rose border. The picker keeps the browser’s native select affordance. Focus adds a `2px` outline with a `4px` offset.
 - **Facility row** leads with the name and an inline rank when present, followed by muted location and distance metadata. Evidence status, explanation, and follow-up prompt stay with the facility. The outlined phone action stacks beneath the facility text on mobile.
 - **Evidence disclosure** uses a rose summary with a native marker and an underline on hover. Expanded source entries sit beneath the facility and use rules to separate claims. Links wrap in place. The first source entry uses a 180 ms reveal when reduced motion is off.

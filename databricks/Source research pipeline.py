@@ -1,7 +1,7 @@
 # Databricks notebook source
 # MAGIC %md
 # MAGIC # Source research pipeline
-# MAGIC Run bounded source adapters that collect evidence leads for review. Records remain marked `lead` and do not enter the live facility ranking until a reviewer confirms source, campus, and claim. The Palwal MRI and Bhagalpur dialysis submission examples are separate and unchanged.
+# MAGIC Run bounded source adapters that collect evidence leads for review. Records remain marked `lead` and do not enter the live facility ranking until a reviewer confirms source, campus, and claim.
 # MAGIC
 # MAGIC Sources include official hospital websites, data.gov.in hospital/public health facility/blood bank exports, PM-JAY, state dialysis program lists, emergency obstetric referral unit lists, NABH, OpenStreetMap, Overture, Google Places, Brave news/tenders/jobs, and public review exports.
 # MAGIC
@@ -201,7 +201,7 @@ else:
                   WHEN NOT MATCHED THEN INSERT *''')
             temp.cleanup()
             display(spark.table(LEADS).where("review_status = 'lead'").orderBy(F.col('checked').desc_nulls_last()).limit(100))
-            print(f'{len(normalized)} leads staged. Existing demo scenario snapshots were not modified.')
+            print(f'{len(normalized)} leads staged.')
 
 # COMMAND ----------
 

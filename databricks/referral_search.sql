@@ -74,9 +74,11 @@ WITH input AS (
   SELECT c.facility_id id, c.facility_name name, c.city, c.state, c.latitude, c.longitude,
     c.best_claim_type claim_type, c.best_claim_subtype claim_subtype, c.best_claim_source_field claim_field, c.best_claim_excerpt excerpt,
     c.has_conflicting_evidence claim_conflict, c.virtue_source_urls source_urls,
-    g.location_flags, coalesce(g.distance_ranking_withheld,false) OR c.facility_id='b94c3b56-febe-41cc-9219-3ba755fe2d4c' loc_conflict,
+    g.location_flags, coalesce(g.distance_ranking_withheld,false) loc_conflict,
     concat_ws(', ', f.address_line1, f.address_line2, c.city, c.state, c.pin) address,
-    f.officialWebsite website, f.facebookLink facebook
+    f.officialWebsite website, f.facebookLink facebook,
+    CASE WHEN trim(f.officialPhone) RLIKE r'^\+?[0-9][0-9 ()-]{7,17}[0-9]$'
+      THEN regexp_replace(trim(f.officialPhone),'[^+0-9]','') END phone
   FROM workspace.referral_verification.v_service_best_claims c
   LEFT JOIN workspace.referral_verification.facility_location_flags g ON c.unique_id = g.unique_id
   LEFT JOIN databricks_virtue_foundation_dataset_dais_2026.virtue_foundation_dataset.facilities f ON c.unique_id = f.unique_id
@@ -85,9 +87,11 @@ WITH input AS (
   SELECT x.unique_id, x.name, x.address_city, x.address_stateOrRegion,
     try_cast(x.latitude AS DOUBLE), try_cast(x.longitude AS DOUBLE),
     'care_setting_mention', NULL, hit.field, hit.excerpt, false, x.source_urls,
-    g.location_flags, coalesce(g.distance_ranking_withheld,false) OR x.unique_id='b94c3b56-febe-41cc-9219-3ba755fe2d4c',
+    g.location_flags, coalesce(g.distance_ranking_withheld,false),
     concat_ws(', ',x.address_line1,x.address_line2,x.address_city,x.address_stateOrRegion,x.address_zipOrPostcode),
-    x.officialWebsite,x.facebookLink
+    x.officialWebsite,x.facebookLink,
+    CASE WHEN trim(x.officialPhone) RLIKE r'^\+?[0-9][0-9 ()-]{7,17}[0-9]$'
+      THEN regexp_replace(trim(x.officialPhone),'[^+0-9]','') END
   FROM databricks_virtue_foundation_dataset_dais_2026.virtue_foundation_dataset.facilities x
   LEFT JOIN workspace.referral_verification.facility_location_flags g ON x.unique_id=g.unique_id
   CROSS JOIN routing_pattern term
@@ -138,7 +142,7 @@ WITH input AS (
     'claimType',claim_type,'claimSubtype',claim_subtype,'claimConflict',claim_conflict,'locationFlags',coalesce(location_flags,array()),
     'claim',named_struct('field',claim_field,'excerpt',excerpt),
     'sourceUrls',coalesce(slice(filter(from_json(source_urls,'array<string>'), x->x IS NOT NULL),1,4),array()),
-    'evidence',coalesce(slice(facts,1,8),array()),'website',website,'facebook',facebook) item
+    'evidence',coalesce(slice(facts,1,8),array()),'website',website,'facebook',facebook,'phone',phone) item
   FROM sorted LEFT JOIN signals ON id=facility_id WHERE position <= 3 OR evidence_position <= 3
 ), grouped AS (
   SELECT transform(array_sort(collect_list(CASE WHEN NOT loc_conflict AND position <= 3 THEN

@@ -3,7 +3,7 @@
 # MAGIC # Atlas · Evidence, expected time, and evaluation
 # MAGIC Run this notebook on Databricks Free Edition serverless Python. It reads Unity Catalog and CSVs in the gold_inputs volume. Collection runs in the separate Source research pipeline. This notebook makes no external API requests.
 # MAGIC
-# MAGIC The target is documented service capability, a proxy for being able to obtain care. Modelled travel and penalties are scenario estimates. The gold sample is positive-unlabelled and biased toward public hospitals. The evaluation measures performance on labelled candidates from held-out districts, not patient outcomes.
+# MAGIC The target is documented service capability, a proxy for being able to obtain care. Travel and penalties are estimates under the stated assumptions. The gold sample is positive-unlabelled and biased toward public hospitals. The evaluation measures performance on labelled candidates from held-out districts, not patient outcomes.
 
 # COMMAND ----------
 
@@ -56,7 +56,7 @@ def describe(table, optional=False):
 
 tables = {n: f'{DATA}.{n}' for n in ('facilities','india_post_pincode_directory')}
 tables.update({n: f'{REF}.{n}' for n in ('v_service_best_claims','facility_location_flags',
-               'frontend_source_signals','external_evidence_ext','city_origins','frontend_scenarios')})
+               'frontend_source_signals','external_evidence_ext')})
 for name in ('silver_facilities','silver_claims','silver_phones','silver_sources','silver_post_offices','silver_pin_centroids'):
     tables[name] = f'{OUT}.{name}'
 schemas = {n: describe(t, n.startswith('silver_')) for n,t in tables.items()}
@@ -259,7 +259,7 @@ print('Facilities with an India Post district:', int(fac.district.ne('').sum()),
 # MAGIC %md
 # MAGIC ## B. Bayesian evidence and calibration
 # MAGIC Fit the prior and likelihood ratios inside each training fold. Keep the strongest present feature in each family, then add log likelihood ratios across families. This assumes conditional independence between families. Families limit the influence of correlated sources.
-# MAGIC Registry sources used for the gold labels, and URLs cited in gold labels, are excluded from model inputs. Features describe the evidence snapshot, so this is a geographic holdout rather than a prospective evaluation. Dates are checked independently in the historical replay.
+# MAGIC Registry sources used for the gold labels, and URLs cited in gold labels, are excluded from model inputs. Features describe the evidence snapshot, so this is a geographic holdout rather than a prospective evaluation.
 
 # COMMAND ----------
 
@@ -291,7 +291,7 @@ DETAILS = {
     'burn_care': (r'burn(?:s)? (?:unit )?beds?',r'burn surgeon'),
     'trauma_care': (r'trauma (?:unit )?beds?',r'trauma surgeon'),
 }
-pair_features, dated, dated_history = {}, {}, {}
+pair_features, dated = {}, {}
 
 def add(identifier,service,key):
     if identifier in by_id.index and service in SERVICES:
@@ -301,7 +301,6 @@ def dated_feature(identifier,service,when,feature,url):
     if identifier not in by_id.index or service not in SERVICES or pd.isna(date_value(when)):
         return
     candidate = (date_value(when), feature, url)
-    dated_history.setdefault((identifier,service),[]).append(candidate)
     if candidate > dated.get((identifier,service),(pd.Timestamp.min.tz_localize('UTC'),'','')):
         dated[(identifier,service)] = candidate
 
@@ -391,13 +390,13 @@ feature_counts = pd.DataFrame(feature_rows,columns=['facility_id','service','fea
 print('Present features per service')
 print(feature_counts.pivot_table(index='feature',columns='service',values='value',aggfunc='sum',fill_value=0).reindex(FEATURES).fillna(0).astype(int))
 
-def matrix(frame, features=None):
-    features = pair_features if features is None else features
+def matrix(frame):
+    features = pair_features
     return np.array([[int(k in features.get((i,s),set())) for k in FEATURES]
                      for i,s in zip(frame.facility_id,frame.service)],dtype=np.float64).reshape(len(frame),len(FEATURES))
 
-def fit_bayes(train,m,features=None):
-    x, y = matrix(train,features),train.y.to_numpy(dtype=int)
+def fit_bayes(train,m):
+    x, y = matrix(train),train.y.to_numpy(dtype=int)
     group_counts = train.groupby('group').y.agg(['sum','count'])
     mean = float(y.mean())
     priors = ((group_counts['sum'] + m*mean) / (group_counts['count']+m)).to_dict()
@@ -405,10 +404,10 @@ def fit_bayes(train,m,features=None):
     lr = ((pos.sum(axis=0)+1)/(len(pos)+2))/((neg.sum(axis=0)+1)/(len(neg)+2))
     return mean,priors,np.log(lr),pos,neg
 
-def predict_bayes(model, frame, features=None):
+def predict_bayes(model, frame):
     mean,priors,loglr,*_ = model
     p0 = np.clip(frame.group.map(priors).fillna(mean).to_numpy(dtype=float),.01,.99)
-    x = matrix(frame,features)
+    x = matrix(frame)
     chosen = np.zeros_like(x)
     for keys in FAMILIES.values():
         order = sorted((FEATURES.index(k) for k in keys),key=lambda j:(-abs(loglr[j]),j))
@@ -551,28 +550,11 @@ def etc_values(km,between,p,settings):
 def order_for(etc,p,km,ids):
     return np.lexsort((ids,km,-p,etc))
 
-def rank_frame(frame,origin,settings, radius=True):
-    frame = frame.loc[~frame.location_conflict & frame.latitude.between(6,38) & frame.longitude.between(68,98)].copy()
-    coords = frame[['latitude','longitude']].to_numpy(dtype=float)
-    km = haversine(np.asarray(origin),coords)
-    if radius:
-        usable = km<=100
-        frame,coords,km = frame.iloc[usable].copy(),coords[usable],km[usable]
-    if not len(frame):
-        return frame
-    between = haversine(coords[:,None,:],coords[None,:,:])
-    p,ids = frame.p.to_numpy(),frame.facility_id.to_numpy()
-    etc,backup,start = etc_values(km,between,p,settings)
-    frame['km'],frame['etc_min'] = km,etc
-    frame['backup'] = [ids[idx] if idx>=0 else None for idx in backup]
-    frame['voi_min'] = call_values(km,between,p,etc,start,ids,settings)
-    return frame.iloc[order_for(etc,p,km,ids)]
-
 # COMMAND ----------
 
 # MAGIC %md
 # MAGIC ## D. Value of one phone call
-# MAGIC A call is modelled as revealing whether the selected facility can provide care. For each of the first five options, compare the current best ETC with the probability-weighted YES and NO scenarios. The NO branch removes the facility both as a first stop and as a backup. Floor the gain at zero. Recommend the highest-value call only when its gain exceeds the cost. Call reliability is an extension.
+# MAGIC A call is modelled as revealing whether the selected facility can provide care. For each of the first five options, compare the current best ETC with the probability-weighted yes and no outcomes. The NO branch removes the facility both as a first stop and as a backup. Floor the gain at zero. Recommend the highest-value call only when its gain exceeds the cost. Call reliability is an extension.
 
 # COMMAND ----------
 
@@ -585,12 +567,6 @@ def call_values(km,between,p,etc,start,ids,settings):
         values[index] = max(0.,best-(p[index]*start[index]+(1-p[index])*without))
     return values
 
-def call_first(ranked,settings):
-    if ranked.empty:
-        return None
-    selection = ranked.sort_values('voi_min',ascending=False,kind='stable').iloc[0]
-    return selection.facility_id if selection.voi_min > settings['c_call'] else None
-
 print('ETC sanity · identical pins:',float(haversine(np.array([20.,75.]),np.array([20.,75.]))))
 print('VOI sanity · no calls can have negative value by construction; recommendations strictly exceed the call cost.')
 
@@ -600,7 +576,7 @@ print('VOI sanity · no calls can have negative value by construction; recommend
 # MAGIC ## E. Held-out evaluation
 # MAGIC A district is the unit of separation. Facilities from held-out districts are excluded from all fitting, including calibration and logistic tuning. Each labelled facility seeds a district-centred search. We collapse identical district-service queries before inference because they have identical candidates and answers. Each candidate must carry a held-out label, be within 100 km and have a usable location. Queries need at least one labelled positive.
 # MAGIC
-# MAGIC Travel is replayed against gold labels. Every false stop incurs the modelled turn-away cost. The reported minutes are simulated using the declared travel assumptions. We report per-service 95% percentile intervals and a two-sided paired sign-flip test with 10,000 draws each.
+# MAGIC Travel time is evaluated against gold labels. Every false stop incurs the modelled turn-away cost. The reported minutes are simulated using the declared travel assumptions. We report per-service 95% percentile intervals and a two-sided paired sign-flip test with 10,000 draws each.
 # MAGIC The leakage diagnostic refits on shuffled training labels while preserving held-out truth. A statistically significant sham gain is flagged for inspection. It may also occur by chance or when the ETC structure alone helps.
 
 # COMMAND ----------
@@ -751,54 +727,21 @@ write('shuffle_diagnostic',shuffle_rows,'service string, minutes_saved double, c
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ## F. Sanity cases and model card
-# MAGIC The published examples are checked independently from the held-out evaluation. A current posterior cannot be passed off as a February 2024 prediction. The historical example checks the archived evidence, and reports biological service scope rather than present-day acceptance.
+# MAGIC ## F. Model integrity and status
+# MAGIC These checks use the available records for each service. The model card records which services have enough evidence to publish a fitted ranking and which have held-out evaluation.
 
 # COMMAND ----------
 
-scenarios = {r.scenario:json.loads(r.payload) for r in spark.table(tables['frontend_scenarios']).select('scenario','payload').collect()}
-palwal = scenarios.get('palwal',{})
-bhagalpur = scenarios.get('bhagalpur',{})
-case_rows = []
-def position(scenario,group,needle):
-    return next((i for i,v in enumerate(scenario.get(group,[]),start=1) if needle in v['name'].lower()),None)
+posterior_keys = [(r[0],r[1]) for r in posterior_rows]
+for valid,check in [
+    (len(set(posterior_keys)) == len(posterior_keys), 'Unique posterior per facility and service'),
+    (all(.01 <= r[3] <= .99 for r in posterior_rows), 'Serving probabilities within the model bounds'),
+    (all(r[-1] >= MIN_SEARCHES for r in tests_rows), 'All published tests meet the held-out sample minimum'),
+]:
+    if not valid:
+        raise RuntimeError(check)
+    print(check, 'passed')
 
-palwal_pass = position(palwal,'supported','jindal') == 1 and position(palwal,'exclusions','civil') is not None
-bhagalpur_pass = bhagalpur.get('cutoff') == '2024-02-18' and position(bhagalpur,'supported','mayaganj') == 1
-case_rows.extend([('Palwal MRI','archived evidence',palwal_pass,'Jindal first, Civil Hospital withheld'),
-                  ('Bhagalpur dialysis','2024-02-18 archived evidence',bhagalpur_pass,'Mayaganj first in the archived replay')])
-if 'mri' in full_models:
-    current = pd.DataFrame([(r[0],r[3],r[8],r[9],r[10]) for r in posterior_rows if r[1]=='mri'],
-                           columns=['facility_id','p','latitude','longitude','location_conflict'])
-    origin = (read('city_origins').loc[lambda t:t.origin_city.map(norm).eq('palwal') & t.state.map(norm).eq('haryana')])
-    if not origin.empty:
-        ranked = rank_frame(current,origin.iloc[0][['origin_latitude','origin_longitude']].to_numpy(dtype=float),DEFAULT)
-        ids = ranked.facility_id.tolist()
-        jindal,civil = '050479fe-82a8-404b-a41b-a61d15eb9577','a948a2d7-b57a-4df6-b082-d8e5b86a214b'
-        passed = jindal in ids and civil in ids and ids.index(jindal)<ids.index(civil)
-        case_rows.append(('Palwal MRI','fitted ETC',passed,f'Jindal and Civil ETC positions: {[ids.index(i)+1 if i in ids else None for i in (jindal,civil)]}'))
-else:
-    case_rows.append(('Palwal MRI','fitted ETC',None,'Insufficient gold labels for MRI'))
-cutoff = date_value('2024-02-18')
-historical_labels = gold.loc[gold.service.eq('dialysis') & gold.label_rule.ne('pmndp_complete_state_absence')
-                             & gold.date.map(date_value).le(cutoff)]
-history = {(i,s): {max(observations)[1]} for (i,s),entries in dated_history.items() if s=='dialysis'
-           if (observations := [entry for entry in entries if entry[0]<=cutoff])}
-if min((historical_labels.y==0).sum(),(historical_labels.y==1).sum()) >= MIN_CLASS and history:
-    origin = read('city_origins').loc[lambda t:t.origin_city.map(norm).eq('bhagalpur') & t.state.map(norm).eq('bihar')]
-    if origin.empty:
-        case_rows.append(('Bhagalpur dialysis','fitted historical ETC',None,'Bhagalpur origin missing'))
-    else:
-        frame = by_id.loc[sorted(i for i,s in history),['group','latitude','longitude','location_conflict']].reset_index()
-        frame['service'] = 'dialysis'
-        frame['p'] = predict_bayes(fit_bayes(historical_labels,DEFAULT['m'],history),frame,history)[0]
-        ranked = rank_frame(frame,origin.iloc[0][['origin_latitude','origin_longitude']].to_numpy(dtype=float),DEFAULT)
-        first = ranked.facility_id.iloc[0] if not ranked.empty else None
-        case_rows.append(('Bhagalpur dialysis','fitted historical ETC',first=='29903d8a-3433-4240-b1eb-91094a7551d4',
-                          'Historical fit uses dated reports and labels at the cutoff, with present directory geography'))
-else:
-    case_rows.append(('Bhagalpur dialysis','fitted historical ETC',None,'Insufficient pre-cutoff gold labels or published evidence'))
-display(write('ranking_sanity_cases',case_rows,'example string, method string, passed boolean, detail string'))
 counts_by_service = {s: {'negative':int(counts.loc[s,0]),'positive':int(counts.loc[s,1])} for s in SERVICES}
 status = 'evaluated' if headlines else ('trained_without_evaluation' if full_models else 'insufficient_gold_labels')
 display(write('model_card',[(VERSION,effective_date,status,json.dumps(counts_by_service,sort_keys=True),
@@ -806,7 +749,7 @@ display(write('model_card',[(VERSION,effective_date,status,json.dumps(counts_by_
     'model_version string, trained_at string, status string, n_labels string, brier string, headline string, assumptions string, trained_services string'))
 display(spark.table(f'{OUT}.eval_tests'))
 if not headlines:
-    print('No evaluable headline yet. Upload verified gold CSVs with at least 30 positives and 30 negatives per service and coverage across at least 30 eligible district queries.')
+    print('Held-out evaluation is unavailable. Upload verified gold CSVs with at least 30 positives and 30 negatives per service and coverage across at least 30 eligible district queries.')
 for h in headlines:
     print(f"On {h['n_searches']} held-out {h['service']} searches, ranking by expected time to care was estimated to save "
           f"{h['minutes_saved']:.2f} minutes versus distance-only (95% CI {h['ci_low']:.2f} to {h['ci_high']:.2f}, p={h['p_value']:.5f}).")

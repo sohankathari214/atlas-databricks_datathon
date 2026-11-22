@@ -1,11 +1,9 @@
 {
-  "name": "find-the-right-care",
+  "name": "atlas-referrals",
   "private": true,
   "type": "module",
   "scripts": {
     "start": "node backend/server.mjs",
-    "configure:llm": "node tools/configure-openai.mjs",
-    "configure:voice": "node tools/configure-twilio.mjs",
-    "start:voice-relay": "node tools/twilio-voice-relay.mjs"
+    "configure:llm": "node tools/configure-openai.mjs"
   }
 }

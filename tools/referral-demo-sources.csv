@@ -1,7 +1,0 @@
-publisher,url,source_type,facility_id,service,name,page,pattern
-KEM Hospital,https://www.kem.edu/cardiovascular-and-thoracic-surgery,hospital_website,1a62801f-4ddb-43e0-81cc-182cb1311171,cardiac_surgery,King Edward Memorial Hospital,,Coronary Artery Bypass Surgery|\bCABG\b
-KEM Hospital 2025 annual report,https://www.kem.edu/wp-content/uploads/2026/01/Annual-Report-2025_16-01.pdf,hospital_website,1a62801f-4ddb-43e0-81cc-182cb1311171,cardiac_surgery,King Edward Memorial Hospital,,CVTS OT\s*[-–]?\s*CABG
-IGIMS Nephrology,https://www.igims.org/about-us/department-detail/nephrology---kidney-transplant,hospital_website,,dialysis,Indira Gandhi Institute of Medical Sciences,,25 machines as of January 2026|4[ ,.]*451
-Palwal District Administration,https://palwal.gov.in/public-utility/civil-hospital/,hospital_directory,,mri,Civil Hospital Palwal,,Civil Hospital
-Hindustan,https://www.livehindustan.com/bihar/bhagalpur/story-dialysis-unit-started-in-mayaganj-hospital-9337620.html,web_search,29903d8a-3433-4240-b1eb-91094a7551d4,dialysis,Mayaganj Hospital,,चार मरीजों
-India Meteorological Department,https://mausam.imd.gov.in/imd_latest/contents/pdf/forecasting_sop.pdf,weather_guidance,,,,,Localized Flooding of roads

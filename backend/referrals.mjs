@@ -1,9 +1,5 @@
 import { queryJson } from './databricks.mjs';
 
-export function readScenario(scenario) {
-  return queryJson('SELECT payload FROM workspace.referral_verification.frontend_scenarios WHERE scenario = :scenario', { scenario });
-}
-
 export async function searchReferral(location, service) {
   const parameters = { location, service };
   const directory = () => queryJson('SELECT payload FROM workspace.referral_verification.search_referrals(:location, :service)', parameters);

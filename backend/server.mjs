@@ -6,8 +6,7 @@ import { loadEnvFile } from 'node:process';
 import { emergencyRoute, interpretCare } from './care-intake.mjs';
 import { emergencySigns } from '../web/care-routing.js';
 import { databricksRequest } from './databricks.mjs';
-import { readScenario, searchReferral, serviceCatalog, referralContext } from './referrals.mjs';
-import { phoneCheckStatus, startPhoneCheck } from './phone-check.mjs';
+import { searchReferral, serviceCatalog, referralContext } from './referrals.mjs';
 
 if (!process.env.DATABRICKS_APP_PORT) {
   try {
@@ -18,7 +17,6 @@ if (!process.env.DATABRICKS_APP_PORT) {
 }
 
 const services = new Set(['mri', 'dialysis', 'c_section', 'nicu', 'cardiac_surgery', 'burn_care', 'trauma_care']);
-const scenarios = new Set(['palwal', 'bhagalpur']);
 const staticFiles = {
   '/': ['index.html', 'text/html'],
   '/style.css': ['style.css', 'text/css'],
@@ -99,12 +97,9 @@ async function handleIntake(request, response) {
       return json(200, { emergency: true, interpretation, message: 'The directory could not load nearby emergency department listings.' });
     }
   }
-  const normalizedLocation = location.toLowerCase().replace(/[,\s]+/g, ' ').trim();
-  const replay = input.useReplay === true && interpretation.service === 'dialysis'
-    && ['bhagalpur', 'bhagalpur bihar'].includes(normalizedLocation);
   const [result, context] = await Promise.all([
-    replay ? readScenario('bhagalpur') : searchReferral(location, interpretation.service),
-    replay ? null : referralContext(submittedAt).catch(() => null),
+    searchReferral(location, interpretation.service),
+    referralContext(submittedAt).catch(() => null),
   ]);
   return json(200, { ...result, interpretation, context });
 }
@@ -137,35 +132,11 @@ const server = createServer(async (request, response) => {
         return json(503, {});
       }
     }
-    if (url.pathname === '/api/dialysis-phone-check') {
-      const json = (code, data) => send(response, code, 'application/json', JSON.stringify(data));
-      try {
-        if (request.method === 'GET') {
-          const result = await phoneCheckStatus(url.searchParams.get('id'));
-          return json(result.status === 'not_found' ? 404 : 200, result);
-        }
-        if (request.method !== 'POST') return json(405, { status: 'invalid_request' });
-        if (request.headers['content-type']?.split(';')[0].trim().toLowerCase() !== 'application/json') {
-          return json(415, { status: 'invalid_request' });
-        }
-        const input = await readIntake(request);
-        if (input?.facilityId !== '29903d8a-3433-4240-b1eb-91094a7551d4') {
-          return json(400, { status: 'invalid_request' });
-        }
-        const result = await startPhoneCheck();
-        return json(result.status === 'pending' ? 202 : 200, result);
-      } catch (error) {
-        console.error('Phone check failed:', error.message);
-        return json(502, { status: 'provider_error' });
-      }
-    }
     if (url.pathname === '/api/referral') {
       if (request.method === 'POST') return await handleIntake(request, response);
       if (request.method !== 'GET') return send(response, 405, 'application/json', '{"error":"Unsupported request method."}');
-      const scenario = url.searchParams.get('scenario');
       const location = url.searchParams.get('location')?.trim();
       const service = url.searchParams.get('service');
-      if (scenarios.has(scenario)) return send(response, 200, 'application/json', JSON.stringify(await readScenario(scenario)));
       if (!location || location.length > 100 || !services.has(service)) {
         return send(response, 400, 'application/json', '{"error":"Enter a location and choose one of the seven services."}');
       }
@@ -182,11 +153,9 @@ const server = createServer(async (request, response) => {
 const port = Number(process.env.DATABRICKS_APP_PORT || process.env.PORT || 4173);
 server.listen(port, process.env.DATABRICKS_APP_PORT ? '0.0.0.0' : '127.0.0.1',
   () => {
-    console.log(`Find the right care listening on port ${port}`);
+    console.log(`Atlas listening on port ${port}`);
     if (process.env.DATABRICKS_APP_PORT) {
-      serviceCatalog().then(catalog => searchReferral('Jaipur, Rajasthan', catalog.find(service => service.id === 'c_section').id))
-        .then(() => console.log('Databricks service catalog and live Jaipur C-section query verified.'))
-        .catch(error => console.error('Databricks startup query failed:', error.message));
+      serviceCatalog().catch(error => console.error('Databricks catalog check failed:', error.message));
     }
   });
 

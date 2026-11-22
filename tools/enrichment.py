@@ -176,7 +176,7 @@ def website_leads(args):
 
 
 def source_leads(args):
-    """Fetch exact demo sources with the same public-host and robots checks as crawl."""
+    """Fetch sources from an operator-supplied manifest with the same public-host and robots checks as crawl."""
     next_request = {}
     for row in seeds(args.input, args.limit):
         url = row['url'].strip()

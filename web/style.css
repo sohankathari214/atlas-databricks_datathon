@@ -4,7 +4,6 @@
   --canvas: #ffffff;
   --surface: #ffffff;
   --search-surface: #fff2f8;
-  --replay-surface: #fceaf3;
   --ink: #2a1727;
   --muted: #685163;
   --rule: #e7d6e1;
@@ -20,7 +19,6 @@
   --warning: #8e251d;
   --warning-border: #b14b43;
   --warning-surface: #fff0eb;
-  --confirmed: #216442;
   --display: Georgia, "Times New Roman", serif;
   color: var(--ink);
   background: var(--canvas);
@@ -171,7 +169,7 @@ button:disabled { opacity: .7; cursor: wait; }
   font-size: .875rem;
 }
 
-.matched-keywords:empty, .phone-status:empty { display: none; }
+.matched-keywords:empty { display: none; }
 .keyword { color: var(--rose); margin-inline: 3px; }
 .keyword + .keyword::before { content: "·"; margin-inline-end: 6px; }
 
@@ -185,34 +183,6 @@ button:disabled { opacity: .7; cursor: wait; }
 }
 
 .results-head p { margin-top: 10px; font-size: .9375rem; }
-
-.replay-note {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 4px 20px;
-  margin-top: 12px;
-  padding: 10px 16px;
-  border-radius: 6px;
-  background: var(--replay-surface);
-  color: var(--muted);
-  font-size: .875rem;
-}
-
-.replay-note b { color: var(--rose); }
-
-.replay-note p { max-width: 75ch; }
-.replay-note button {
-  background: transparent;
-  color: var(--accent);
-  border-color: transparent;
-  padding-inline: 0;
-  flex: none;
-  text-decoration: underline;
-  text-underline-offset: .2em;
-}
-
-.replay-note button:hover:not(:disabled) { background: transparent; color: var(--accent-hover); }
 
 .aware {
   margin-top: 21px;
@@ -263,7 +233,6 @@ button:disabled { opacity: .7; cursor: wait; }
 .next b { color: var(--ink); }
 
 .phone-check { justify-self: end; text-align: end; padding-top: 4px; }
-.phone-status { margin-top: 6px; font-size: .875rem; }
 
 summary {
   width: fit-content;
@@ -326,7 +295,6 @@ footer > a { padding-block: 8px; }
   .shell { width: calc(100% - 48px); }
   .search form { gap: 10px 12px; }
   .results-head h2 { font-size: 2.75rem; }
-  .replay-note { flex-wrap: wrap; }
 }
 
 @media (max-width: 650px) {
@@ -346,11 +314,9 @@ footer > a { padding-block: 8px; }
   .card { padding-block: 20px; }
   .phone-check { justify-self: start; text-align: start; }
   .aware > .sub:first-of-type { display: block; margin-inline-start: 0; }
-  .replay-note button { flex: initial; text-align: start; }
   footer { gap: 0; }
 }
 
-.phone-status.confirmed { color: var(--confirmed); font-weight: 700; }
 
 
 @media (prefers-reduced-motion: no-preference) {

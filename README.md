@@ -11,7 +11,6 @@ Atlas compares nearby health facilities in India using the Virtue Foundation dat
 3. The backend binds the location and service as SQL parameters, sends the statement to `POST /api/2.0/sql/statements`, and polls the warehouse while the statement is pending or running. It uses the managed service principal in Databricks Apps or a Databricks CLI profile locally. [Referral queries](backend/referrals.mjs) · [Databricks client](backend/databricks.mjs)
 4. Databricks resolves the search origin, finds facility claims within 100 km, joins reviewed evidence, and ranks the results. The backend returns the warehouse result to the browser with the matched service and keywords. [Referral search SQL](databricks/referral_search.sql)
 
-The web form searches the current directory. The archived Palwal MRI and February 18, 2024 Bhagalpur dialysis cases are available in the submission workspace and through the saved-scenario API. The ranking notebook records those checks separately from fitted model checks. [Archived notebook source](databricks/Explore%20live%20referrals.py)
 
 ## Evidence-based ranking and evaluation
 
@@ -40,7 +39,7 @@ A service needs at least 30 independent positive labels and 30 independent negat
 
 The travel grid uses three detour factors, three speeds (including 30), and three turn-away costs (including 30) for 27 runs per evaluable service. The other assumptions are varied individually. The fitted model card and `eval_tests` preserve the signs, confidence intervals, and p-values of the observed estimates.
 
-**Video wording supported by the current workspace:** “Atlas built 360,930 facility-service feature values from the Databricks data. The gold input volume contains zero labels, so there is no held-out estimate of minutes saved yet.” Once labels are available, the notebook prints an exact sentence from the corresponding `eval_tests` row, with held-out search count, estimated minutes saved, 95% interval and p-value.
+The model card records current label coverage. The notebook prints the held-out search count, estimated minutes saved, 95% interval and p-value when evaluation is available.
 
 ## Enable free-text interpretation
 
@@ -56,9 +55,11 @@ The command reads the ignored `.env` file, assigns the app's service principal r
 
 ## Databricks workflow
 
+The [live search notebook](databricks/Explore%20live%20referrals.py) accepts a location and service and queries the same functions as the app.
+
 The directory fallback, `workspace.referral_verification.search_referrals`, resolves the location using documented city coordinates, Virtue city pins, or India Post locality, district and PIN data. It compares proximity-ranked mentions against service claim classifications, facility location flags, and eligible reviewed sources. If the name is ambiguous or missing from the lookup, enter a PIN or coordinates.
 
-Outside curated cases, an explicit on-site mention is a lead. Routine C-section, initial trauma stabilization, and an SNCU are shown with their narrower scope. Location conflicts have no distance or rank. Neither source volume nor a map listing establishes on-site care availability.
+An explicit on-site mention provides a lead when model ranking is unavailable. Routine C-section, initial trauma stabilization, and an SNCU are shown with their narrower scope. Location conflicts have no distance or rank. Neither source volume nor a map listing establishes on-site care availability.
 
 The root Databricks Apps configuration starts the backend and selects the SQL warehouse. After replacing the SQL function, reapply `EXECUTE` to the app service principal before redeploying because the warehouse may clear the grant on replacement. [Databricks Apps configuration](app.yaml)
 
@@ -110,32 +111,8 @@ curl --get http://127.0.0.1:4173/api/referral \
   --data-urlencode 'service=c_section'
 ```
 
-## Hindi dialysis phone check
+## Facility contact and source refresh
 
-The archived Hindi phone integration uses a configured team-owned number. The live ranking interface links to a listed facility number when one is available and offers a question to ask for the highest-value call. Call recommendations estimate information value from the model.
+The app offers a direct call link when the facility directory contains a usable public number. For a fitted service, Atlas may identify a call with the highest estimated value and suggest a question about capacity or availability.
 
-Put the following in the root `.env`, using E.164 numbers and a verified destination on the Twilio trial account.
-
-```dotenv
-TWILIO_ACCOUNT_SID=
-TWILIO_AUTH_TOKEN=
-TWILIO_FROM_NUMBER=
-TWILIO_TEST_TO_NUMBER=
-```
-
-For Twilio trial Voice, run `cloudflared tunnel --url http://127.0.0.1:4189` and set `REFERRAL_VOICE_RELAY_URL` in `.env` to the HTTPS URL it prints. Set `REFERRAL_VOICE_RELAY_TOKEN` to 64 random hex characters, then run `npm run start:voice-relay`. Keep both processes running during the presentation. The relay accepts authenticated Databricks requests and gives Twilio a signed URL for each callback. The phone numbers and Twilio token stay in the local `.env`.
-
-Run `npm run configure:voice` with the Databricks CLI authenticated. Setup checks the relay and saves its connection details to a dedicated Databricks secret scope. If using a Studio-enabled account, omit the relay variables to validate and publish the [Studio flow](tools/hindi-dialysis-flow.json). Set `TWILIO_FLOW_SID` to reuse a specific flow. Setup does not dial the phone.
-
-## Refresh demo evidence
-
-The submission notebook has presets for Parel coronary bypass, Patna dialysis, Palwal MRI, Bhagalpur dialysis, and an illustrative monsoon evening. Its **Scraped source leads** preset queries the Databricks staging table. For live referrals, `databricks/referral_context.sql` uses the submission timestamp to show India local time, overnight context, and the broad June–September southwest monsoon window. Route closures, receiving hours, and current capacity require separate verification. They do not change ranking.
-
-The focused scraper reads the exact public sources and extraction patterns listed in `tools/referral-demo-sources.csv`. It follows robots rules and fetches HTML or, with `pypdf` installed, PDFs.
-
-```sh
-python3 tools/enrichment.py sources tools/referral-demo-sources.csv > demo-leads.jsonl
-python3 tools/stage-referral-leads.py demo-leads.jsonl --profile virtue-datathon
-```
-
-Add `--cli /path/to/databricks` to the staging command if the CLI is outside your PATH. The staging command writes to `workspace.referral_verification.demo_scraped_source_leads`. Review excerpts against the source and the exact facility campus before publishing them with the reviewed-evidence loader. Live search joins published records from `frontend_source_signals`. A reporting-period total or published equipment count describes historical capacity, not available slots or staffing at the time of a search.
+Run the **Source research pipeline** to refresh records. For an operator-maintained list of specific web pages or PDFs, use `python3 tools/enrichment.py sources "$manifest"`. The CSV manifest accepts `publisher,url,source_type,facility_id,service,name,page,pattern`, where `pattern` is a text extraction regex and `page` is optional for PDFs. Import its JSONL through the notebook and review the source, exact campus and service before publication.

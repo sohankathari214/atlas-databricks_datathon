@@ -13,9 +13,6 @@
       "search-surface": {
         "displayName": "Search Surface"
       },
-      "replay-surface": {
-        "displayName": "Replay Surface"
-      },
       "ink": {
         "displayName": "Ink"
       },
@@ -122,14 +119,6 @@
       "description": "The filled action alongside a facility result.",
       "html": "<button type=\"button\" class=\"ds-filled\">Confirm by phone</button>",
       "css": ".ds-filled { min-height: 42px; padding: 10px 16px; border: 1px solid var(--accent, #9f175f); border-radius: 8px; background: var(--action, #af1767); color: #fff; font: 650 1rem/1.3 system-ui, -apple-system, sans-serif; cursor: pointer; } .ds-filled:hover:not(:disabled) { background: var(--accent-hover, #771244); } .ds-filled:focus-visible { outline: 2px solid #b52474; outline-offset: 4px; } .ds-filled:disabled { opacity: .7; cursor: wait; }"
-    },
-    {
-      "name": "Replay action",
-      "kind": "button",
-      "refersTo": "button-replay",
-      "description": "The underlined action alongside the historical replay note.",
-      "html": "<button type=\"button\" class=\"ds-replay\">Run live directory search</button>",
-      "css": ".ds-replay { min-height: 42px; padding: 10px 0; border: 1px solid transparent; border-radius: 8px; background: transparent; color: var(--accent, #9f175f); font: 650 .875rem/1.3 system-ui, -apple-system, sans-serif; text-decoration: underline; text-underline-offset: .2em; cursor: pointer; } .ds-replay:hover:not(:disabled) { color: var(--accent-hover, #771244); } .ds-replay:focus-visible { outline: 2px solid #b52474; outline-offset: 4px; } .ds-replay:disabled { opacity: .7; cursor: wait; }"
     },
     {
       "name": "Search field",

@@ -15,17 +15,17 @@ const date = value => value ? new Intl.DateTimeFormat('en', {
 const link = (label, url) => /^https?:\/\//i.test(url || '')
   ? `<a href="${escape(url)}" target="_blank" rel="noopener noreferrer">${escape(label)}</a>` : '';
 
-function evidence(row, cutoff, additionalLinks, showMissingVirtueText) {
+function evidence(row, additionalLinks) {
   const claim = row.claim ? `<b>Virtue · ${escape(row.claim.field)}</b><br><q translate="no">${escape(row.claim.excerpt)}</q>`
-    : showMissingVirtueText ? 'No matching Virtue text for this service.' : '';
+    : '';
   const virtueSources = row.sourceUrls.map((url, index) => link(`Virtue source ${index + 1}`, url)).join(' · ');
   return `<details><summary>Evidence and source links</summary>
     <div class="evidence">${claim}<p class="metadata">Virtue facility ID · ${escape(row.id)}<br><span translate="no">${escape(row.virtueAddress)}</span></p>
     <p class="metadata">${row.campusCorroborated ? 'Campus corroborated. Exact pin unverified.' : 'Campus identity and pin need confirmation.'}</p>
     ${virtueSources ? `<div class="links">${virtueSources}</div>` : ''}</div>
     ${row.evidence.map(item => {
-      const timing = item.event ? `Event ${date(item.event)} · Published ${date(item.published)}`
-        : cutoff ? 'Undated campus cross-check · reviewed after replay' : 'Publication date unknown';
+      const timing = [item.event && `Event ${date(item.event)}`, item.published && `Published ${date(item.published)}`]
+        .filter(Boolean).join(' · ') || 'Publication date unknown';
       return `<div class="evidence"><b>${link(item.publisher,item.url)}</b> · ${escape(timing)}
         <p>${item.kind === 'hospital_page' || item.kind === 'news_report' || item.kind === 'procurement_document' || item.kind === 'operator_directory' ? 'Source summary · ' : ''}${escape(item.excerpt)}</p>
         ${item.translation ? `<p><i>Translation</i> · ${escape(item.translation)}</p>` : ''}
@@ -51,7 +51,6 @@ function contextPanel(context) {
 }
 
 function topReason(row, mode, service) {
-  if (mode === 'supported' && row.kind === 'delivered') return 'Reviewed evidence documents this service at this campus on the replay date or earlier.';
   if (mode === 'supported') return 'Reviewed evidence supports this service at this campus.';
   if (mode === 'baseline') return 'Closest listed emergency department among the returned records.';
   if (row.claimSubtype === 'sncu_level2' || row.claimSubtype === 'stabilization_documented'
@@ -59,10 +58,6 @@ function topReason(row, mode, service) {
     return 'The record describes a related but narrower service. This lead ranks by documented scope, then distance.';
   if (row.claimType === 'explicit_onsite') return 'The dataset names the service at this campus. On-site claims rank ahead of general mentions, with distance breaking ties.';
   return 'This is the highest-ranked relevant directory mention. Distance breaks ties between comparable claims.';
-}
-
-function isBhagalpurDialysisReplay(data) {
-  return Boolean(data.cutoff) && data.service === 'dialysis' && data.location === 'Bhagalpur, Bihar';
 }
 
 function card(row, data, mode, rank) {
@@ -88,7 +83,7 @@ function card(row, data, mode, rank) {
     </div>
     ${row.phone && mode !== 'excluded' && /^\+?[0-9]{8,18}$/.test(row.phone)
       ? `<a class="phone-check" href="tel:${escape(row.phone)}">Call facility</a>` : ''}
-    ${evidence(row, data.cutoff, [maps, otherLinks].filter(Boolean).join(' '), !isBhagalpurDialysisReplay(data))}
+    ${evidence(row, [maps, otherLinks].filter(Boolean).join(' '))}
     ${mapQuery ? `<aside class="facility-map" data-map-query="${escape(mapQuery)}" hidden>
       <div class="map-title"><strong>Campus map</strong> ${link('Open in Google Maps', googleMap)}</div>
       <iframe title="Google Maps campus preview" loading="lazy" referrerpolicy="strict-origin-when-cross-origin" allowfullscreen></iframe>
@@ -153,16 +148,13 @@ function render(data) {
     return;
   }
   const service = serviceLabels[data.service];
-  const showReplayNotice = data.cutoff && !isBhagalpurDialysisReplay(data);
   const [mainExclusion, ...otherExclusions] = data.exclusions;
   const ranked = [...data.supported,...data.leads].sort((a,b) => a.rank-b.rank);
   const orderedCards = ranked.map(row => card(row,data,row.p >= 0.5 ? 'supported' : 'lead',row.rank));
   const leads = data.leads.map((row, index) => card(row, data, 'lead', data.supported.length + index + 1));
   const more = [...otherExclusions.map(row => card(row, data, 'excluded')),
     ...(data.rankingAvailable ? [] : leads.slice(data.supported.length ? 0 : 1))];
-  results.innerHTML = `<div class="results-head"><h2><span translate="no">${escape(data.location)}</span> · ${service}</h2>${showReplayNotice ? `<p role="status">Historical replay · ${date(data.cutoff)}</p>` : ''}</div>
-    ${showReplayNotice ? `<div class="panel replay-note"><p><b>Reviewed historical example.</b> The evidence shows what was reported by ${escape(date(data.cutoff))}. Current service availability is unknown.</p>
-      <button type="button" id="live-results">Run live directory search</button></div>` : ''}
+  results.innerHTML = `<div class="results-head"><h2><span translate="no">${escape(data.location)}</span> · ${service}</h2></div>
       ${contextPanel(data.context)}
       ${rankingNote(data, ranked)}
       <section class="panel aware" aria-label="Evidence-aware results"><h2 class="section-label">Evidence-aware results</h2><p class="sub">Current service availability and slots unknown</p>
@@ -171,11 +163,10 @@ function render(data) {
         ${mainExclusion ? card(mainExclusion, data, 'excluded') : ''}
         ${more.length ? `<details class="more"><summary>Other candidates (${more.length})</summary>${more.join('')}</details>` : ''}
       </section>`;
-  results.querySelector('#live-results')?.addEventListener('click', () => search({ useReplay: false }));
 }
 
 let activeRequest;
-async function search({ useReplay = false } = {}) {
+async function search() {
   activeRequest?.abort();
   const request = new AbortController();
   activeRequest = request;
@@ -186,7 +177,7 @@ async function search({ useReplay = false } = {}) {
   try {
     const response = await fetch('/api/referral', {
       method: 'POST', headers: { 'Content-Type': 'application/json' }, signal: request.signal,
-      body: JSON.stringify({ location: locationInput.value, problem: problemInput.value, useReplay }),
+      body: JSON.stringify({ location: locationInput.value, problem: problemInput.value }),
     });
     const data = await response.json();
     if (!response.ok) {
@@ -205,7 +196,7 @@ async function search({ useReplay = false } = {}) {
   } catch (error) {
     if (request.signal.aborted) return;
     results.innerHTML = `<div class="state" role="status"><p>${escape(error.userMessage || 'Could not load these results.')}</p><button type="button">Retry search</button></div>`;
-    results.querySelector('button').addEventListener('click', () => search({ useReplay }));
+    results.querySelector('button').addEventListener('click', search);
   } finally {
     if (activeRequest === request) results.setAttribute('aria-busy', 'false');
   }
