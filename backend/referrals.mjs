@@ -8,6 +8,12 @@ export function searchReferral(location, service) {
   return queryJson('SELECT payload FROM workspace.referral_verification.search_referrals(:location, :service)', { location, service });
 }
 
+export function referralContext(submittedAt) {
+  return queryJson('SELECT payload FROM workspace.referral_verification.referral_context(:submittedAt)', {
+    submittedAt: submittedAt.toISOString().slice(0, -1),
+  });
+}
+
 let catalogCache;
 let catalogExpires = 0;
 export async function serviceCatalog() {

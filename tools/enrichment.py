@@ -5,6 +5,7 @@ from datetime import date
 from html.parser import HTMLParser
 import json
 import ipaddress
+from io import BytesIO
 import socket
 import os
 from pathlib import Path
@@ -141,6 +142,49 @@ def website_leads(args):
             print(f'Skipped source for {row.get("facility_id", "")} ({type(error).__name__})', file=sys.stderr)
 
 
+def source_leads(args):
+    """Fetch exact demo sources with the same public-host and robots checks as crawl."""
+    next_request = {}
+    for row in seeds(args.input, args.limit):
+        url = row['url'].strip()
+        try:
+            host = public_url(url).hostname
+            time.sleep(max(0, next_request.get(host, 0) - time.monotonic()))
+            rules = allowed_by_robots(url)
+            delay = max(1, rules.crawl_delay(AGENT) or rules.crawl_delay('*') or 1)
+            next_request[host] = time.monotonic() + delay
+            time.sleep(delay)
+            # The KEM annual report is around 52 MB. Permit larger responses only
+            # for an explicitly listed PDF while keeping the read bounded.
+            cap = 64_000_000 if urlsplit(url).path.lower().endswith('.pdf') else 2_000_000
+            body, final = request(url, cap=cap)
+            next_request[host] = time.monotonic() + delay
+            if not rules.can_fetch(AGENT, final):
+                raise ValueError('Final path is disallowed by robots.txt')
+            if body.startswith(b'%PDF'):
+                from pypdf import PdfReader
+                reader = PdfReader(BytesIO(body))
+                page = int(row['page']) if row.get('page') else None
+                pages = [reader.pages[page - 1]] if page else reader.pages[:40]
+                text = ' '.join(item.extract_text() or '' for item in pages)
+            else:
+                page = Page()
+                page.feed(body.decode('utf-8', 'replace'))
+                text = ' '.join(page.parts)
+            text = ' '.join(text.split())
+            hit = re.search(row['pattern'], text, re.I)
+            if not hit:
+                print(f'No matching text: {url}', file=sys.stderr)
+                continue
+            yield record(row['source_type'], row['publisher'], final,
+                         facility_id=row.get('facility_id') or None, service=row.get('service') or None,
+                         name=row.get('name') or None,
+                         excerpt=text[max(0, hit.start() - 60):hit.end() + 160],
+                         rationale='Extracted from the source. Review exact campus, date and scope before use.')
+        except (OSError, ValueError, ImportError, IndexError) as error:
+            print(f'Skipped {url}: {error}', file=sys.stderr)
+
+
 def tabular_leads(args):
     mapping = json.loads(Path(args.columns).read_text())
     source = args.input
@@ -249,6 +293,10 @@ def main():
     crawl.add_argument('--limit', type=positive, required=True)
     crawl.add_argument('--pages', type=int, choices=range(0,11),default=10)
     crawl.set_defaults(run=website_leads)
+    sources=modes.add_parser('sources')
+    sources.add_argument('input')
+    sources.add_argument('--limit',type=positive,default=10)
+    sources.set_defaults(run=source_leads)
     tab=modes.add_parser('directory')
     tab.add_argument('input')
     tab.add_argument('--source-type',choices=sorted(GOVERNMENT|{'review'}),required=True)

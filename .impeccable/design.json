@@ -1,176 +1,68 @@
 {
   "schemaVersion": 2,
-  "generatedAt": "2026-11-22T00:47:14+00:00",
+  "generatedAt": "2026-11-22T04:01:37.084898+00:00",
   "title": "Design System: Find the right care",
   "extensions": {
     "colorMeta": {
-      "accent": {
-        "role": "primary",
-        "displayName": "Petrol",
-        "tonalRamp": [
-          "oklch(15% 0.0713 233.4)",
-          "oklch(26% 0.0713 233.4)",
-          "oklch(37% 0.0713 233.4)",
-          "oklch(49% 0.0713 233.4)",
-          "oklch(60% 0.0713 233.4)",
-          "oklch(72% 0.0713 233.4)",
-          "oklch(83% 0.0713 233.4)",
-          "oklch(95% 0.0713 233.4)"
-        ]
+      "canvas": {
+        "displayName": "Canvas"
       },
-      "accent-hover": {
-        "role": "primary",
-        "displayName": "Deep Petrol",
-        "tonalRamp": [
-          "oklch(15% 0.0596 234.0)",
-          "oklch(26% 0.0596 234.0)",
-          "oklch(37% 0.0596 234.0)",
-          "oklch(49% 0.0596 234.0)",
-          "oklch(60% 0.0596 234.0)",
-          "oklch(72% 0.0596 234.0)",
-          "oklch(83% 0.0596 234.0)",
-          "oklch(95% 0.0596 234.0)"
-        ]
+      "surface": {
+        "displayName": "Surface"
       },
-      "warning": {
-        "role": "secondary",
-        "displayName": "Rust",
-        "tonalRamp": [
-          "oklch(15% 0.0924 38.5)",
-          "oklch(26% 0.0924 38.5)",
-          "oklch(37% 0.0924 38.5)",
-          "oklch(49% 0.0924 38.5)",
-          "oklch(60% 0.0924 38.5)",
-          "oklch(72% 0.0924 38.5)",
-          "oklch(83% 0.0924 38.5)",
-          "oklch(95% 0.0924 38.5)"
-        ]
+      "search-surface": {
+        "displayName": "Search Surface"
       },
-      "warning-surface": {
-        "role": "secondary",
-        "displayName": "Pale Warm Surface",
-        "tonalRamp": [
-          "oklch(15% 0.0153 48.6)",
-          "oklch(26% 0.0153 48.6)",
-          "oklch(37% 0.0153 48.6)",
-          "oklch(49% 0.0153 48.6)",
-          "oklch(60% 0.0153 48.6)",
-          "oklch(72% 0.0153 48.6)",
-          "oklch(83% 0.0153 48.6)",
-          "oklch(95% 0.0153 48.6)"
-        ]
-      },
-      "warning-border": {
-        "role": "secondary",
-        "displayName": "Rust Border",
-        "tonalRamp": [
-          "oklch(15% 0.0916 39.9)",
-          "oklch(26% 0.0916 39.9)",
-          "oklch(37% 0.0916 39.9)",
-          "oklch(49% 0.0916 39.9)",
-          "oklch(60% 0.0916 39.9)",
-          "oklch(72% 0.0916 39.9)",
-          "oklch(83% 0.0916 39.9)",
-          "oklch(95% 0.0916 39.9)"
-        ]
-      },
-      "paper": {
-        "role": "neutral",
-        "displayName": "Paper White",
-        "tonalRamp": [
-          "oklch(15% 0.0026 106.4)",
-          "oklch(26% 0.0026 106.4)",
-          "oklch(37% 0.0026 106.4)",
-          "oklch(49% 0.0026 106.4)",
-          "oklch(60% 0.0026 106.4)",
-          "oklch(72% 0.0026 106.4)",
-          "oklch(83% 0.0026 106.4)",
-          "oklch(95% 0.0026 106.4)"
-        ]
-      },
-      "white": {
-        "role": "neutral",
-        "displayName": "Field White",
-        "tonalRamp": [
-          "oklch(15% 0.0000 0.0)",
-          "oklch(26% 0.0000 0.0)",
-          "oklch(37% 0.0000 0.0)",
-          "oklch(49% 0.0000 0.0)",
-          "oklch(60% 0.0000 0.0)",
-          "oklch(72% 0.0000 0.0)",
-          "oklch(83% 0.0000 0.0)",
-          "oklch(95% 0.0000 0.0)"
-        ]
+      "replay-surface": {
+        "displayName": "Replay Surface"
       },
       "ink": {
-        "role": "neutral",
-        "displayName": "Ink",
-        "tonalRamp": [
-          "oklch(15% 0.0310 232.5)",
-          "oklch(26% 0.0310 232.5)",
-          "oklch(37% 0.0310 232.5)",
-          "oklch(49% 0.0310 232.5)",
-          "oklch(60% 0.0310 232.5)",
-          "oklch(72% 0.0310 232.5)",
-          "oklch(83% 0.0310 232.5)",
-          "oklch(95% 0.0310 232.5)"
-        ]
+        "displayName": "Ink"
       },
       "muted": {
-        "role": "neutral",
-        "displayName": "Muted Slate",
-        "tonalRamp": [
-          "oklch(15% 0.0188 227.3)",
-          "oklch(26% 0.0188 227.3)",
-          "oklch(37% 0.0188 227.3)",
-          "oklch(49% 0.0188 227.3)",
-          "oklch(60% 0.0188 227.3)",
-          "oklch(72% 0.0188 227.3)",
-          "oklch(83% 0.0188 227.3)",
-          "oklch(95% 0.0188 227.3)"
-        ]
+        "displayName": "Muted"
       },
       "rule": {
-        "role": "neutral",
-        "displayName": "Gray Rule",
-        "tonalRamp": [
-          "oklch(15% 0.0071 174.3)",
-          "oklch(26% 0.0071 174.3)",
-          "oklch(37% 0.0071 174.3)",
-          "oklch(49% 0.0071 174.3)",
-          "oklch(60% 0.0071 174.3)",
-          "oklch(72% 0.0071 174.3)",
-          "oklch(83% 0.0071 174.3)",
-          "oklch(95% 0.0071 174.3)"
-        ]
+        "displayName": "Rule"
       },
       "control": {
-        "role": "neutral",
-        "displayName": "Control Gray",
-        "tonalRamp": [
-          "oklch(15% 0.0189 215.6)",
-          "oklch(26% 0.0189 215.6)",
-          "oklch(37% 0.0189 215.6)",
-          "oklch(49% 0.0189 215.6)",
-          "oklch(60% 0.0189 215.6)",
-          "oklch(72% 0.0189 215.6)",
-          "oklch(83% 0.0189 215.6)",
-          "oklch(95% 0.0189 215.6)"
-        ]
+        "displayName": "Control"
+      },
+      "accent": {
+        "displayName": "Accent"
+      },
+      "accent-hover": {
+        "displayName": "Accent Hover"
+      },
+      "action": {
+        "displayName": "Action"
+      },
+      "action-hover": {
+        "displayName": "Action Hover"
+      },
+      "action-text": {
+        "displayName": "Action Text"
+      },
+      "rose": {
+        "displayName": "Rose"
       },
       "focus": {
-        "role": "primary",
-        "displayName": "Focus Blue",
-        "tonalRamp": [
-          "oklch(15% 0.0941 231.3)",
-          "oklch(26% 0.0941 231.3)",
-          "oklch(37% 0.0941 231.3)",
-          "oklch(49% 0.0941 231.3)",
-          "oklch(60% 0.0941 231.3)",
-          "oklch(72% 0.0941 231.3)",
-          "oklch(83% 0.0941 231.3)",
-          "oklch(95% 0.0941 231.3)"
-        ]
+        "displayName": "Focus"
+      },
+      "selection": {
+        "displayName": "Selection"
+      },
+      "warning": {
+        "displayName": "Warning"
+      },
+      "warning-border": {
+        "displayName": "Warning Border"
+      },
+      "warning-surface": {
+        "displayName": "Warning Surface"
+      },
+      "confirmed": {
+        "displayName": "Confirmed"
       }
     },
     "typographyMeta": {
@@ -221,7 +113,7 @@
       "refersTo": "button-search",
       "description": "The filled action beside the search fields.",
       "html": "<button type=\"button\" class=\"ds-filled\">Find facilities</button>",
-      "css": ".ds-filled { min-height: 46px; padding: 10px 25px; border: 1px solid var(--accent, #104963); border-radius: 6px; background: var(--accent, #104963); color: #fff; font: 650 1rem/1.3 system-ui, -apple-system, sans-serif; cursor: pointer; } .ds-filled:hover:not(:disabled) { background: var(--accent-hover, #0a374c); } .ds-filled:focus-visible { outline: 2px solid #176d90; outline-offset: 4px; } .ds-filled:disabled { opacity: .7; cursor: wait; }"
+      "css": ".ds-filled { min-height: 46px; padding: 10px 25px; border: 1px solid var(--accent, #9f175f); border-radius: 8px; background: var(--action, #af1767); color: #fff; font: 650 1rem/1.3 system-ui, -apple-system, sans-serif; cursor: pointer; } .ds-filled:hover:not(:disabled) { background: var(--accent-hover, #771244); } .ds-filled:focus-visible { outline: 2px solid #b52474; outline-offset: 4px; } .ds-filled:disabled { opacity: .7; cursor: wait; }"
     },
     {
       "name": "Phone action",
@@ -229,7 +121,7 @@
       "refersTo": "button-primary",
       "description": "The filled action alongside a facility result.",
       "html": "<button type=\"button\" class=\"ds-filled\">Confirm by phone</button>",
-      "css": ".ds-filled { min-height: 42px; padding: 10px 16px; border: 1px solid var(--accent, #104963); border-radius: 6px; background: var(--accent, #104963); color: #fff; font: 650 1rem/1.3 system-ui, -apple-system, sans-serif; cursor: pointer; } .ds-filled:hover:not(:disabled) { background: var(--accent-hover, #0a374c); } .ds-filled:focus-visible { outline: 2px solid #176d90; outline-offset: 4px; } .ds-filled:disabled { opacity: .7; cursor: wait; }"
+      "css": ".ds-filled { min-height: 42px; padding: 10px 16px; border: 1px solid var(--accent, #9f175f); border-radius: 8px; background: var(--action, #af1767); color: #fff; font: 650 1rem/1.3 system-ui, -apple-system, sans-serif; cursor: pointer; } .ds-filled:hover:not(:disabled) { background: var(--accent-hover, #771244); } .ds-filled:focus-visible { outline: 2px solid #b52474; outline-offset: 4px; } .ds-filled:disabled { opacity: .7; cursor: wait; }"
     },
     {
       "name": "Replay action",
@@ -237,7 +129,7 @@
       "refersTo": "button-replay",
       "description": "The underlined action alongside the historical replay note.",
       "html": "<button type=\"button\" class=\"ds-replay\">Run live directory search</button>",
-      "css": ".ds-replay { min-height: 42px; padding: 10px 0; border: 1px solid transparent; border-radius: 6px; background: transparent; color: var(--accent, #104963); font: 650 .875rem/1.3 system-ui, -apple-system, sans-serif; text-decoration: underline; text-underline-offset: .2em; cursor: pointer; } .ds-replay:hover:not(:disabled) { color: var(--accent-hover, #0a374c); } .ds-replay:focus-visible { outline: 2px solid #176d90; outline-offset: 4px; } .ds-replay:disabled { opacity: .7; cursor: wait; }"
+      "css": ".ds-replay { min-height: 42px; padding: 10px 0; border: 1px solid transparent; border-radius: 8px; background: transparent; color: var(--accent, #9f175f); font: 650 .875rem/1.3 system-ui, -apple-system, sans-serif; text-decoration: underline; text-underline-offset: .2em; cursor: pointer; } .ds-replay:hover:not(:disabled) { color: var(--accent-hover, #771244); } .ds-replay:focus-visible { outline: 2px solid #b52474; outline-offset: 4px; } .ds-replay:disabled { opacity: .7; cursor: wait; }"
     },
     {
       "name": "Search field",
@@ -245,7 +137,7 @@
       "refersTo": "input-search",
       "description": "A labeled location or care field.",
       "html": "<label class=\"ds-field\">Location<input class=\"ds-location\" placeholder=\"City, state · PIN · latitude, longitude\" required></label>",
-      "css": ".ds-field { display: grid; gap: 8px; color: var(--ink, #172a34); font: 650 .9375rem system-ui, -apple-system, sans-serif; } .ds-location { box-sizing: border-box; width: 100%; min-height: 46px; padding: 9px 12px; border: 1px solid var(--control, #68777b); border-radius: 6px; background: #fff; color: var(--ink, #172a34); caret-color: var(--accent, #104963); font: inherit; font-weight: 450; } .ds-location::placeholder { color: var(--muted, #515e64); } .ds-location:focus-visible { outline: 2px solid #176d90; outline-offset: 4px; }"
+      "css": ".ds-field { display: grid; gap: 8px; color: var(--ink, #2a1727); font: 650 .9375rem system-ui, -apple-system, sans-serif; } .ds-location { box-sizing: border-box; width: 100%; min-height: 46px; padding: 9px 12px; border: 1px solid var(--control, #947a8c); border-radius: 8px; background: var(--surface, #ffffff); color: var(--ink, #2a1727); caret-color: var(--accent, #9f175f); font: inherit; font-weight: 450; } .ds-location::placeholder { color: var(--muted, #685163); } .ds-location:focus-visible { outline: 2px solid #b52474; outline-offset: 4px; }"
     },
     {
       "name": "Language picker",
@@ -253,7 +145,7 @@
       "refersTo": "select-language",
       "description": "The labeled native select in the masthead.",
       "html": "<div class=\"ds-language\"><label for=\"ds-language-select\">Language / भाषा</label><select id=\"ds-language-select\" class=\"ds-language-select\"><option>English</option><option>हिन्दी</option></select></div>",
-      "css": ".ds-language { display: grid; width: fit-content; grid-template-columns: auto auto; align-items: center; gap: 4px 10px; color: var(--muted, #515e64); font: .8125rem system-ui, -apple-system, sans-serif; } .ds-language-select { min-height: 40px; padding: 9px 24px 9px 10px; border: 1px solid var(--control, #68777b); border-radius: 6px; background: #fff; color: var(--ink, #172a34); font: 1rem system-ui, -apple-system, sans-serif; } .ds-language-select:focus-visible { outline: 2px solid #176d90; outline-offset: 4px; }"
+      "css": ".ds-language { display: grid; width: fit-content; grid-template-columns: auto auto; align-items: center; gap: 4px 10px; color: var(--muted, #685163); font: .8125rem system-ui, -apple-system, sans-serif; } .ds-language-select { min-height: 40px; padding: 9px 24px 9px 10px; border: 1px solid var(--control, #947a8c); border-radius: 8px; background: var(--surface, #ffffff); color: var(--ink, #2a1727); font: 1rem system-ui, -apple-system, sans-serif; } .ds-language-select:focus-visible { outline: 2px solid #b52474; outline-offset: 4px; }"
     },
     {
       "name": "Evidence disclosure",
@@ -261,7 +153,7 @@
       "refersTo": "disclosure",
       "description": "The native disclosure beneath a facility result.",
       "html": "<details class=\"ds-evidence\"><summary>Evidence and source links</summary><div class=\"ds-source\"><b>Virtue</b><p>Campus identity and pin need confirmation.</p></div></details>",
-      "css": ".ds-evidence { color: var(--ink, #172a34); font-family: system-ui, -apple-system, sans-serif; } .ds-evidence summary { width: fit-content; padding-block: 8px; color: var(--accent, #104963); cursor: pointer; font-size: .9375rem; font-weight: 600; line-height: 1.4; } .ds-evidence summary::marker { font-size: .8em; } .ds-evidence summary:hover { text-decoration: underline; text-underline-offset: .2em; } .ds-evidence summary:focus-visible { outline: 2px solid #176d90; outline-offset: 4px; } .ds-source { margin-top: 8px; padding-block: 12px; border-top: 1px solid var(--rule, #c9cfcd); font-size: .9rem; } .ds-source p { margin: 5px 0 0; color: var(--muted, #515e64); font-size: .875rem; line-height: 1.55; }"
+      "css": ".ds-evidence { color: var(--ink, #2a1727); font-family: system-ui, -apple-system, sans-serif; } .ds-evidence summary { width: fit-content; padding-block: 8px; color: var(--accent, #9f175f); cursor: pointer; font-size: .9375rem; font-weight: 600; line-height: 1.4; } .ds-evidence summary::marker { font-size: .8em; } .ds-evidence summary:hover { text-decoration: underline; text-underline-offset: .2em; } .ds-evidence summary:focus-visible { outline: 2px solid #b52474; outline-offset: 4px; } .ds-source { margin-top: 8px; padding-block: 12px; border-top: 1px solid var(--rule, #e7d6e1); font-size: .9rem; } .ds-source p { margin: 5px 0 0; color: var(--muted, #685163); font-size: .875rem; line-height: 1.55; }"
     },
     {
       "name": "Facility row",
@@ -269,7 +161,7 @@
       "refersTo": "facility-row",
       "description": "A ruled result with name, distance metadata, and a status line.",
       "html": "<article class=\"ds-facility\"><h3><span class=\"ds-rank\">#1</span> Mayaganj Hospital (JLNMCH)</h3><p>Bhagalpur · 1.6 km straight-line</p><div class=\"ds-result-status\">Dialysis documented</div></article>",
-      "css": ".ds-facility { padding-block: 24px; border-bottom: 1px solid var(--rule, #c9cfcd); color: var(--ink, #172a34); font-family: system-ui, -apple-system, sans-serif; } .ds-facility h3 { margin: 0 0 4px; font: 700 2rem/1.15 var(--display, Georgia, \"Times New Roman\", serif); letter-spacing: -.032em; overflow-wrap: anywhere; } .ds-rank { margin-inline-end: .35em; color: var(--muted, #515e64); font: 650 .8125rem/1 system-ui, sans-serif; font-variant-numeric: tabular-nums; letter-spacing: 0; vertical-align: .22em; } .ds-facility p { margin: 0; color: var(--muted, #515e64); font-size: .875rem; line-height: 1.55; font-variant-numeric: tabular-nums; } .ds-result-status { margin-top: 9px; color: var(--accent, #104963); font-weight: 650; } @media (max-width: 650px) { .ds-facility { padding-block: 20px; } .ds-facility h3 { font-size: 1.625rem; } }"
+      "css": ".ds-facility { padding-block: 24px; border-bottom: 1px solid var(--rule, #e7d6e1); color: var(--ink, #2a1727); font-family: system-ui, -apple-system, sans-serif; } .ds-facility h3 { margin: 0 0 4px; font: 700 2rem/1.15 var(--display, Georgia, \"Times New Roman\", serif); letter-spacing: -.032em; overflow-wrap: anywhere; } .ds-rank { margin-inline-end: .35em; color: var(--muted, #685163); font: 650 .8125rem/1 system-ui, sans-serif; font-variant-numeric: tabular-nums; letter-spacing: 0; vertical-align: .22em; } .ds-facility p { margin: 0; color: var(--muted, #685163); font-size: .875rem; line-height: 1.55; font-variant-numeric: tabular-nums; } .ds-result-status { margin-top: 9px; color: var(--accent, #9f175f); font-weight: 650; } @media (max-width: 650px) { .ds-facility { padding-block: 20px; } .ds-facility h3 { font-size: 1.625rem; } }"
     },
     {
       "name": "Emergency guidance",
@@ -277,7 +169,7 @@
       "refersTo": "emergency-guidance",
       "description": "A bordered warning with an inline call link.",
       "html": "<section class=\"ds-emergency\"><h2>Possible emergency</h2><p>If this is happening now in India, <a href=\"tel:112\">call 112 now</a>.</p></section>",
-      "css": ".ds-emergency { padding: 16px 18px; border: 1px solid #ad6b54; background: #fff3ed; color: var(--warning, #783a26); font-family: system-ui, -apple-system, sans-serif; } .ds-emergency h2 { margin: 0 0 5px; font-size: 1.125rem; } .ds-emergency p { margin: 0; line-height: 1.55; } .ds-emergency a { color: inherit; font-weight: 700; text-underline-offset: .2em; } .ds-emergency a:focus-visible { outline: 2px solid #176d90; outline-offset: 4px; }"
+      "css": ".ds-emergency { padding: 16px 18px; border: 1px solid #b14b43; background: #fff0eb; color: var(--warning, #8e251d); font-family: system-ui, -apple-system, sans-serif; } .ds-emergency h2 { margin: 0 0 5px; font-size: 1.125rem; } .ds-emergency p { margin: 0; line-height: 1.55; } .ds-emergency a { color: inherit; font-weight: 700; text-underline-offset: .2em; } .ds-emergency a:focus-visible { outline: 2px solid #b52474; outline-offset: 4px; }"
     },
     {
       "name": "Route mark",
@@ -285,10 +177,10 @@
       "refersTo": "brand-mark",
       "description": "The outlined route mark paired with the wordmark.",
       "html": "<span class=\"ds-mark\" aria-hidden=\"true\"></span>",
-      "css": ".ds-mark { position: relative; display: inline-grid; width: 28px; box-sizing: border-box; aspect-ratio: 1; place-items: center; border: 1.5px solid var(--accent, #104963); border-radius: 50%; color: var(--accent, #104963); } .ds-mark::before { content: \"\"; width: 12px; height: 14px; background: currentColor; clip-path: polygon(100% 0, 74% 100%, 48% 56%, 0 40%); } @media (max-width: 650px) { .ds-mark { width: 22px; } }"
+      "css": ".ds-mark { position: relative; display: inline-grid; width: 28px; box-sizing: border-box; aspect-ratio: 1; place-items: center; border: 1.5px solid var(--rose, #a21d68); border-radius: 50%; color: var(--rose, #a21d68); } .ds-mark::before { content: \"\"; width: 12px; height: 14px; background: currentColor; clip-path: polygon(100% 0, 74% 100%, 48% 56%, 0 40%); } @media (max-width: 650px) { .ds-mark { width: 22px; } }"
     }
   ],
   "narrative": {
-    "overview": "The interface reads as a referral directory. A paper-white canvas, dark serif headings, petrol controls, and thin gray rules give location, care need, and facility names a clear order. A small route mark sits beside the wordmark.\n\nFacility rows place the evidence status and its explanation beside the follow-up action. Supporting claims and source links open beneath the same result."
+    "overview": "The interface reads as a referral directory. A white canvas, dark plum headings, raspberry actions, and blush dividers give location, care need, and facility names a clear order. A small route mark sits beside the wordmark.\n\nFacility rows place the evidence status and its explanation beside the follow-up action. Supporting claims and source links open beneath the same result."
   }
 }

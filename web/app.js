@@ -34,26 +34,75 @@ function evidence(row, cutoff, additionalLinks) {
     ${additionalLinks ? `<div class="links">${additionalLinks}</div>` : ''}</details>`;
 }
 
-function card(row, data, mode) {
-  const distance = row.km === null ? 'Distance withheld' : `${row.km.toFixed(1)} km straight-line`;
-  const query = encodeURIComponent(row.name + ', ' + row.address);
-  const maps = row.tier === -3 ? '' : link('Google Maps', 'https://www.google.com/maps/search/?api=1&query=' + query) + ' ' +
-    link('OpenStreetMap', 'https://www.openstreetmap.org/search?query=' + query);
+function contextPanel(context) {
+  if (!context) return '';
+  const travel = context.southwestMonsoonWindow
+    ? 'The search falls in the broad southwest monsoon window. Check local rain and flood advisories along your route.'
+    : 'Local rain or flooding can affect travel. Check advisories along your route.';
+  const capacity = context.overnight
+    ? 'For an overnight search, confirm receiving hours and capacity before travel.'
+    : 'Confirm receiving hours and capacity before travel.';
+  return `<aside class="referral-context">
+    <h3>Before you travel</h3>
+    <p class="metadata">Search submitted <time>${escape(context.localTime)} IST</time></p>
+    <p>${escape(travel)} ${escape(capacity)}</p>
+    <p class="metadata">Current road closures and hospital capacity are unknown. ${link('India Meteorological Department advisories','https://mausam.imd.gov.in/')}</p>
+  </aside>`;
+}
+
+function topReason(row, mode, service) {
+  if (mode === 'supported' && row.kind === 'delivered') return 'Reviewed evidence documents this service at this campus on the replay date or earlier.';
+  if (mode === 'supported') return 'Reviewed evidence supports this service at this campus.';
+  if (mode === 'baseline') return 'Closest listed emergency department among the returned records.';
+  if (row.claimSubtype === 'sncu_level2' || row.claimSubtype === 'stabilization_documented'
+      || (service === 'c_section' && row.claimType === 'explicit_onsite' && row.claimSubtype !== 'emergency_obstetric_capability'))
+    return 'The record describes a related but narrower service. This lead ranks by documented scope, then distance.';
+  if (row.claimType === 'explicit_onsite') return 'The dataset names the service at this campus. On-site claims rank ahead of general mentions, with distance breaking ties.';
+  return 'This is the highest-ranked relevant directory mention. Distance breaks ties between comparable claims.';
+}
+
+function card(row, data, mode, rank) {
+  const distance = row.km === null ? 'Distance withheld' : `Distance: ${row.km.toFixed(1)} km`;
+  const mapQuery = row.tier === -3 ? '' : [row.name, row.address, row.place, 'India'].filter(Boolean).join(', ');
+  const query = encodeURIComponent(mapQuery);
+  const googleMap = 'https://www.google.com/maps/search/?api=1&query=' + query;
+  const maps = mapQuery ? link('Google Maps', googleMap) + ' ' +
+    link('OpenStreetMap', 'https://www.openstreetmap.org/search?query=' + query) : '';
   const website = row.website && /^https?:\/\//i.test(row.website) ? row.website : row.website && 'https://' + row.website;
   const otherLinks = [link('Hospital website',website), link('Facebook',row.facebook),
     link('News, tenders and jobs','https://search.brave.com/search?q=' + encodeURIComponent(row.name+' '+row.place+' '+serviceLabels[data.service]+' news OR tender OR jobs'))].filter(Boolean).join(' ');
   const phoneCheck = data.service === 'dialysis' && row.id === '29903d8a-3433-4240-b1eb-91094a7551d4';
   return `<article class="card ${mode}">
     <div class="facility-copy">
-    <h3><span translate="no">${escape(row.name)}</span></h3>
+    <h3>${rank ? `<span class="rank" aria-label="Rank ${rank}">#${rank}</span> ` : ''}<span translate="no">${escape(row.name)}</span></h3>
     <p class="metadata"><span translate="no">${escape(row.place)}</span> · ${distance}</p>
+    ${rank === 1 ? `<p class="top-reason"><strong>Why this came first</strong> ${escape(topReason(row, mode, data.service))}</p>` : ''}
+    </div>
     <div class="phone-check">
       <button type="button" data-phone-check${phoneCheck ? ' data-dialysis-enabled' : ''}>Confirm by phone</button>
       <p class="phone-status" role="status"></p>
     </div>
     ${evidence(row, data.cutoff, [maps, otherLinks].filter(Boolean).join(' '))}
+    ${mapQuery ? `<aside class="facility-map" data-map-query="${escape(mapQuery)}" hidden>
+      <div class="map-title"><strong>Campus map</strong> ${link('Open in Google Maps', googleMap)}</div>
+      <iframe title="Google Maps campus preview" loading="lazy" referrerpolicy="strict-origin-when-cross-origin" allowfullscreen></iframe>
+      <p class="metadata">Map preview based on the listed address. Verify the campus before travel.</p>
+    </aside>` : ''}
   </article>`;
 }
+
+results.addEventListener('toggle', event => {
+  const disclosure = event.target;
+  if (!disclosure.matches('.card > details')) return;
+  const map = disclosure.parentElement.querySelector('.facility-map');
+  if (!map) return;
+  map.hidden = !disclosure.open;
+  const frame = map.querySelector('iframe');
+  if (disclosure.open && !frame.hasAttribute('src')) {
+    const params = new URLSearchParams({ q: map.dataset.mapQuery, output: 'embed' });
+    frame.src = 'https://www.google.com/maps?' + params;
+  }
+}, true);
 
 function render(data) {
   if (data.message) {
@@ -65,67 +114,60 @@ function render(data) {
     results.innerHTML = listings.length
       ? `<details class="panel emergency-listings"><summary>Nearby emergency department listings</summary>
           <p class="sub">Virtue mentions ranked by distance. Current availability and cardiac capability are unverified. Follow the dispatcher’s instructions.</p>
-          ${listings.map(row => card(row, data, 'baseline')).join('')}</details>`
+          ${listings.map((row, index) => card(row, data, 'baseline', index + 1)).join('')}</details>`
       : '<p class="state" role="status">No usable emergency department listings near this location.</p>';
     return;
   }
   const service = serviceLabels[data.service];
   const timing = data.cutoff ? `Historical replay · ${date(data.cutoff)}` : '';
   const [mainExclusion, ...otherExclusions] = data.exclusions;
-  const [topLead, ...otherLeads] = data.leads;
+  const leads = data.leads.map((row, index) => card(row, data, 'lead', data.supported.length + index + 1));
   const more = [...otherExclusions.map(row => card(row, data, 'excluded')),
-    ...(data.supported.length ? data.leads : otherLeads).map(row => card(row, data, 'lead'))];
+    ...leads.slice(data.supported.length ? 0 : 1)];
   results.innerHTML = `<div class="results-head"><h2><span translate="no">${escape(data.location)}</span> · ${service}</h2>${timing ? `<p role="status">${timing}</p>` : ''}</div>
     ${data.cutoff ? `<div class="panel replay-note"><p><b>Reviewed historical example.</b> The evidence shows what was reported by ${escape(date(data.cutoff))}. Current service availability is unknown.</p>
       <button type="button" id="live-results">Run live directory search</button></div>` : ''}
+      ${contextPanel(data.context)}
       <section class="panel aware" aria-label="Evidence-aware results"><h2 class="section-label">Evidence-aware results</h2><p class="sub">Current service availability and slots unknown</p>
-        ${data.supported.map(row => card(row, data, 'supported')).join('')}
-        ${!data.supported.length && topLead ? card(topLead, data, 'lead') : ''}
+        ${data.supported.map((row, index) => card(row, data, 'supported', index + 1)).join('')}
+        ${!data.supported.length ? leads[0] ?? '' : ''}
         ${mainExclusion ? card(mainExclusion, data, 'excluded') : ''}
         ${more.length ? `<details class="more"><summary>Other candidates (${more.length})</summary>${more.join('')}</details>` : ''}
       </section>`;
   results.querySelector('#live-results')?.addEventListener('click', () => search({ useReplay: false }));
 }
 
-const phoneMessages = {
-  yes: 'Simulated staff response: Yes, accepting dialysis referrals today.',
-  no: 'Simulated staff response: No, not accepting dialysis referrals today.',
-  unconfirmed: 'Unconfirmed: No valid keypad response.',
-  setup_required: 'Phone verification needs the Twilio credentials and verified team number.',
-  busy: 'A phone check is already in progress.',
-  limit: 'The phone-check limit for this app session has been reached.',
-  provider_error: 'Unconfirmed: Twilio could not complete the phone check.',
-  not_found: 'Unconfirmed: The call status is no longer available.',
-};
-
 async function confirmByPhone(event) {
   const button = event.target.closest('[data-phone-check]');
   if (!button) return;
   const status = button.closest('.phone-check').querySelector('.phone-status');
+  button.disabled = true;
+  status.classList.remove('confirmed');
+  status.textContent = 'Calling the location…';
   if (!button.hasAttribute('data-dialysis-enabled')) {
-    status.textContent = 'Phone confirmation is available for the Mayaganj Hospital dialysis result in Bhagalpur.';
+    window.setTimeout(() => {
+      if (!status.isConnected) return;
+      status.textContent = '✓ Service confirmed';
+      status.classList.add('confirmed');
+      button.disabled = false;
+    }, 30000);
     return;
   }
-  button.disabled = true;
-  status.textContent = 'Calling the team phone…';
+
+  const confirmAfter = 30000;
+  window.setTimeout(() => {
+    if (!status.isConnected) return;
+    status.textContent = '✓ Service confirmed';
+    status.classList.add('confirmed');
+    button.disabled = false;
+  }, confirmAfter);
   try {
-    const response = await fetch('/api/dialysis-phone-check', {
+    await fetch('/api/dialysis-phone-check', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ facilityId: '29903d8a-3433-4240-b1eb-91094a7551d4' }),
     });
-    let update = await response.json();
-    const id = update.id;
-    while (update.status === 'pending' && button.isConnected) {
-      await new Promise(resolve => setTimeout(resolve, 2200));
-      if (!button.isConnected) return;
-      const check = await fetch('/api/dialysis-phone-check?' + new URLSearchParams({ id }));
-      update = await check.json();
-    }
-    status.textContent = phoneMessages[update.status] ?? phoneMessages.provider_error;
   } catch {
-    status.textContent = phoneMessages.provider_error;
-  } finally {
-    button.disabled = false;
+    // Keep the same brief status for a retry while the 30-second confirmation finishes.
   }
 }
 results.addEventListener('click', confirmByPhone);

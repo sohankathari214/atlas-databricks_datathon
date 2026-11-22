@@ -1,45 +1,74 @@
 # Databricks notebook source
 # MAGIC %md
 # MAGIC # Find the right care | Submission notebook
-# MAGIC Enter a locality or district and state, a six-digit PIN, or latitude and longitude in India. Choose a challenge service or care setting. This notebook runs the data-side pipeline. The app uses OpenAI to classify free text against the Unity Catalog service catalog, then calls the same Databricks search function shown below. The notebook lets you enter the equivalent service directly. Search evidence describes facility claims and historical records. Current service availability and referral acceptance require confirmation.
+# MAGIC Search the live directory, compare dated replays, and inspect scraped source leads in one notebook. A directory lead is not current availability. Road closures and hospital capacity are unknown unless a verified feed supplies them.
+# MAGIC
+# MAGIC The app classifies free text against the Unity Catalog service catalog. This notebook uses the equivalent service directly. Scraped records remain in the research table until campus, dates, and service scope are reviewed.
 
 # COMMAND ----------
 
-dbutils.widgets.text('location', 'Jaipur, Rajasthan', 'Location')
-dbutils.widgets.dropdown('service', 'c_section', ['mri','dialysis','c_section','nicu','cardiac_surgery','burn_care','trauma_care','emergency_care','primary_care'], 'Service')
-dbutils.widgets.dropdown('demo', 'Live search', ['Live search','Palwal MRI','Bhagalpur dialysis'], 'Preset')
+dbutils.widgets.text('location', 'Parel, Mumbai', 'Location')
+dbutils.widgets.dropdown('service', 'cardiac_surgery', ['mri','dialysis','c_section','nicu','cardiac_surgery','burn_care','trauma_care','emergency_care','primary_care'], 'Service')
+dbutils.widgets.dropdown('demo', 'Parel coronary bypass', ['Live search','Parel coronary bypass','Patna dialysis','Palwal MRI','Bhagalpur dialysis','Monsoon evening example','Scraped source leads'], 'Preset')
 
 # COMMAND ----------
 
 import json
+from datetime import datetime, timezone
 
-catalog = json.loads(spark.sql(
-    'SELECT payload FROM workspace.referral_verification.referral_service_catalog()'
-).first().payload)
-
+schema = 'workspace.referral_verification'
 preset = dbutils.widgets.get('demo')
-if preset == 'Live search':
-    matched = next(service for service in catalog if service['id'] == dbutils.widgets.get('service'))
-    print('Catalog service:', matched['label'], '· Intake terms:', ', '.join(matched['keywords']))
-    payload = spark.sql(
-        'SELECT payload FROM workspace.referral_verification.search_referrals(:location, :service)',
-        args={'location':dbutils.widgets.get('location'), 'service':matched['id']}
-    ).first().payload
-else:
-    payload = spark.sql(
-        'SELECT payload FROM workspace.referral_verification.frontend_scenarios WHERE scenario = :scenario',
-        args={'scenario':'palwal' if preset == 'Palwal MRI' else 'bhagalpur'}
-    ).first().payload
+query = lambda sql, **args: spark.sql(sql, args=args)
+def payload(sql, **args):
+    return json.loads(query(sql, **args).first().payload)
 
-result = json.loads(payload)
-print(result['location'], result['service'], result.get('cutoff') or result.get('originMethod') or 'Latest reviewed evidence')
-if result['message']:
-    print(result['message'])
+def explain(row, group, service):
+    if group == 'supported':
+        return 'Reviewed evidence supports prior service at this campus.'
+    narrow = row.get('claimSubtype') in ('sncu_level2', 'stabilization_documented') or (
+        service == 'c_section' and row.get('claimSubtype') != 'emergency_obstetric_capability')
+    if row.get('claimType') == 'explicit_onsite' and not narrow:
+        return 'On-site claim ranked before broader mentions. Distance breaks ties.'
+    return 'Highest-ranked eligible directory lead by documented scope and distance.'
+
+if preset == 'Scraped source leads':
+    display(spark.table(f'{schema}.demo_scraped_source_leads').orderBy('checked', ascending=False))
 else:
-    rows = [(section, r['name'], r.get('km'), r.get('baselineRank'), r.get('rank'), r.get('label') or r.get('claimType'),
-             (r.get('claim') or {}).get('excerpt'), r['id'], json.dumps(r['evidence'], ensure_ascii=False))
-            for section in ('baseline','supported','exclusions','leads') for r in result[section]]
-    if rows:
-        display(spark.createDataFrame(rows, 'section string, facility string, km double, baseline_rank int, supported_rank int, claim string, virtue_excerpt string, facility_id string, evidence_json string'))
+    clock = datetime.now(timezone.utc)
+    examples = {
+        'Parel coronary bypass': ('Parel, Mumbai', 'cardiac_surgery'),
+        'Patna dialysis': ('800014', 'dialysis'),
+        'Monsoon evening example': ('Parel, Mumbai', 'cardiac_surgery'),
+    }
+    replay = {'Palwal MRI': 'palwal', 'Bhagalpur dialysis': 'bhagalpur'}.get(preset)
+    if replay:
+        result = payload(f'SELECT payload FROM {schema}.frontend_scenarios WHERE scenario = :scenario', scenario=replay)
+        print('Historical replay cutoff:', result.get('cutoff') or 'latest reviewed evidence')
     else:
-        print('No nearby keyword hits or reviewed evidence for this service.')
+        location, service = examples.get(preset, (dbutils.widgets.get('location'), dbutils.widgets.get('service')))
+        result = payload(f'SELECT payload FROM {schema}.search_referrals(:location, :service)', location=location, service=service)
+        if preset == 'Monsoon evening example':
+            clock = datetime(2026, 7, 23, 15, 30, tzinfo=timezone.utc)
+            print('Illustrative submission timestamp. Facility results still use the live directory.')
+        context = payload(f'SELECT payload FROM {schema}.referral_context(:submitted)', submitted=clock.replace(tzinfo=None).isoformat())
+        print(f'Submitted {context["localTime"]} IST · Overnight: {context["overnight"]} · Southwest monsoon window: {context["southwestMonsoonWindow"]}')
+        print('Road closures and capacity unknown. Verify receiving hours and check local advisories: https://mausam.imd.gov.in/')
+    print(result['location'], result['service'])
+    if result.get('message'):
+        print(result['message'])
+    else:
+        choices = [(key, row) for key in ('supported', 'leads') for row in result.get(key, [])]
+        if result['service'] == 'emergency_care' and not replay:
+            choices = [('emergency listing', row) for row in result.get('baseline', []) if row['tier'] >= 0]
+        rows = []
+        for rank, (group, row) in enumerate(choices, 1):
+            reason = ('Closest returned emergency department listing.' if group == 'emergency listing'
+                      else explain(row, group, result['service'])) if rank == 1 else None
+            rows.append((rank, group, row['name'], row.get('km'), reason, json.dumps(row['evidence'], ensure_ascii=False)))
+        for group in ('exclusions', 'baseline'):
+            rows += [(None, group, row['name'], row.get('km'), None, json.dumps(row['evidence'], ensure_ascii=False))
+                     for row in result.get(group, [])]
+        if rows:
+            display(spark.createDataFrame(rows, 'rank int, group string, facility string, distance_km double, why_first string, evidence_json string'))
+        else:
+            print('No nearby directory hits or reviewed evidence for this service.')

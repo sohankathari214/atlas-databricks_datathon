@@ -6,7 +6,7 @@ import { loadEnvFile } from 'node:process';
 import { emergencyRoute, interpretCare } from './care-intake.mjs';
 import { emergencySigns } from '../web/care-routing.js';
 import { databricksRequest } from './databricks.mjs';
-import { readScenario, searchReferral, serviceCatalog } from './referrals.mjs';
+import { readScenario, searchReferral, serviceCatalog, referralContext } from './referrals.mjs';
 import { phoneCheckStatus, startPhoneCheck } from './phone-check.mjs';
 
 if (!process.env.DATABRICKS_APP_PORT) {
@@ -59,6 +59,7 @@ async function readIntake(request) {
 }
 
 async function handleIntake(request, response) {
+  const submittedAt = new Date();
   if (request.headers['content-type']?.split(';')[0].trim().toLowerCase() !== 'application/json') {
     return send(response, 415, 'application/json', '{"error":"Send the search as JSON."}');
   }
@@ -101,10 +102,11 @@ async function handleIntake(request, response) {
   const normalizedLocation = location.toLowerCase().replace(/[,\s]+/g, ' ').trim();
   const replay = input.useReplay !== false && interpretation.service === 'dialysis'
     && ['bhagalpur', 'bhagalpur bihar'].includes(normalizedLocation);
-  const result = replay
-    ? await readScenario('bhagalpur')
-    : await searchReferral(location, interpretation.service);
-  return json(200, { ...result, interpretation });
+  const [result, context] = await Promise.all([
+    replay ? readScenario('bhagalpur') : searchReferral(location, interpretation.service),
+    replay ? null : referralContext(submittedAt).catch(() => null),
+  ]);
+  return json(200, { ...result, interpretation, context });
 }
 
 function send(response, code, type, content) {
@@ -112,7 +114,7 @@ function send(response, code, type, content) {
     'Content-Type': `${type}; charset=utf-8`,
     'Cache-Control': 'no-store',
     'X-Content-Type-Options': 'nosniff',
-    'Content-Security-Policy': "default-src 'self'; img-src 'self' data:; base-uri 'none'; object-src 'none'",
+    'Content-Security-Policy': "default-src 'self'; img-src 'self' data:; frame-src https://www.google.com/maps https://www.google.com/maps/embed; base-uri 'none'; object-src 'none'",
   });
   response.end(content);
 }
